@@ -1,0 +1,13 @@
+{
+    "Version": 1,
+    "Serial_Number": "4efcbeda0f2b46e0977ed5aefe8bacc5",
+    "Signature_Algorithm": "RSA",
+    "Issuer": "CA_Name",
+    "Validity_Not_Before": "2025-11-11T16:23:35Z",
+    "Validity_Not_After": "2026-11-11T16:23:35Z",
+    "Subject": "TestClient",
+    "Public_Key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAogJSFpIlvg2SztJw2LMmYoKHs4jW8GOF5N6YoUbBs0mEjnDMBHNKeEukQQxQP/GMBl1kvKDEAd6DbCL4IiZNf6OXuM+jROpg30q21IJeb0sVc3BzUbeuD6J02oIsl2dK64cyyU10pKLzfh5AkuKkYuvtgcmU0WDncOW+8ghsFMb0aU61xByq389c1XpWQ9fwGOzM+b73b7cPcujfgdHPCIUzxnaW5MNHndgW/kgUUMWR9quMxXTArJKeDGPrNqjtAopjoKq1jK6JAX53YfADpZMXGa3rdARVwRvW5aEI/0m+LtCXmcsOHKBN61LPWkP4rG8uJavOxJR/SA8OnLhIpwIDAQAB",
+    "Key_Algorithm": "RSA",
+    "CA_Public_Key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAshCh9EfUtLcW5gF/IoanH6Q+K3boyGP+G4FYcZCRcI+UkUBjyDfAixeJFSqXglismJb+OgDWu4mlQK1KkFKdBgRItiWV6t9ivqWq9bi0XvoPKT3HNXQ09MUY1UEHW7XDW/Y4mYQ3CSmX9wYDzbzjGD6P766RcavHs38nozfVzBqrfifEttVp6kbp8SwvnWuOpYm407gjOp3oOrfwUHxdxz7I77TgbqB07NcEDEtcHtCUoMm+wNgWCPH2CavSje2Pq0Uik40oXXsDfDDFA0shD1QoOMYk4MBi2YpH+DOyLecrBA8EwdNwzE8gZb0hF75pgwSHaqtTfnbnSq2oW3m0dQIDAQAB",
+    "Signature": "lkImvlzD/+re1esRj8+ijnHdOvN8JF7ayFrM/6SOy0rvvhbCMnn80CMbN2MA+i7gZuFvd0I7t8WpC0Bz3Ji370kt8M/S9MoVYVl/S1OsPLyhcM4MNPIoH7GP3jkP1ktX0wmmY+pZwEfxmM1WrclTgg8f+x6+AiF5XuDB3m9b7Z5ORi6XKPD+xZbrlRt9DQsX2XBIABqHD+ShKf5Ul7HqT162p4aYHxcOcsgZXR/b3eE/qPbP1GX/I7qnab8feMYlderD66VCF8XXBKfmCHODSTkOKFEA3xSOEAggasTyLrMgUjAWD8Nr9S47urkiZUpp8WT2Wmcv9hqN1jhn5qp7sw=="
+}

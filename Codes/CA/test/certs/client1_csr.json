@@ -1,0 +1,11 @@
+{
+    "Version": 1,
+    "Serial_Number": "cfb24cb06ff44918ac2fce2bfc59769d",
+    "Signature_Algorithm": "RSA",
+    "Issuer": "CA_Name",
+    "Validity_Not_Before": "2025-10-03T06:36:19Z",
+    "Validity_Not_After": "2026-10-03T06:36:19Z",
+    "Subject": "Client",
+    "Public_Key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1M2u0VLbe3x5XC04GPQcIQyDxbSfuAhGR83uUQokHVsqWbGqsBVl+rCUImdjDym2lCN5F2uo0Fm/D0QVfUTiOONtyPSHrWee1N3Oe31j4FkBQC2w/wCbn6fxI1CNCFdI9qXz+35TtbQSHcnp/oD1WU/u8qsPVmhmPU4xtdjeIY9ynePZn7UndsNh+rXO1mwaDkFJs8wzWIUGNQsCIgmM1sfGXsYM+MudfQLFElJ0tklAaAGwKxwdokyhrID6rIPcRMNIu05WSequaPm0OMxARlrCFYlvIQG9OGlqH1LWlt1mD1BwS/xITe3e/ol4qhumhg72XHYar1cZt9K+Xc1xpwIDAQAB",
+    "Key_Algorithm": "RSA"
+}

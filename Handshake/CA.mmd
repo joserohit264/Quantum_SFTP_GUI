@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant Client as 💻 Client
+    participant CA as 🛡️ CA
+    participant Server as 🖥️ Server
+
+    Note over Client: Setup Phase (One-time)<br>🔐 CA Certificate Pinned
+    Note over Server: Setup Phase (One-time)<br>🔐 CA Certificate Pinned
+
+    Client->>CA: 🔏 Send Client CSR
+    CA-->>Client: 📄 Return Signed Client Certificate
+
+    Server->>CA: 🔏 Send Server CSR
+    CA-->>Server: 📄 Return Signed Server Certificate
+
+    Note over Client, Server: 🔁 Certificate Exchange During Handshake
+
+    Client->>Server: 📄 Send Client Certificate
+    Server->>Client: 📄 Send Server Certificate
+
+    Client->>Client: 🔍 Verify Server Cert using CA Public Key
+    Server->>Server: 🔍 Verify Client Cert using CA Public Key
+
+    Note over Client, Server: ✅ Mutual Authentication Complete

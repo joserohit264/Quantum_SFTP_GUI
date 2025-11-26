@@ -1,0 +1,54 @@
+sequenceDiagram
+    participant Client
+    participant Server
+
+    Note over Client,Server: Quantum Secure File Transfer Protocol (QSFtp) Handshake<br>Post-Quantum Secure: Kyber (KEM) + Dilithium (Signature)<br>Goal: Agree on session key K_s and mutually authenticate
+
+    %% Step 1: ClientHello
+    Client->>Client: Generate client_nonce<br>Get timestamp_client
+    Client->>Client: Generate Dilithium keypair:<br> Client_Public_Sign_key, Client_Private_Sign_Key = Dilithium.keygen()
+    
+    Client->>Server: ClientHello:<br>- client_cert<br>- client_nonce<br>- client_timestamp
+
+    Note over Server: Verify client_cert & client_timestamp
+
+    %% Step 2: ServerHello
+    Server->>Server: Generate server_nonce<br>Get server_timestamp
+    Server->>Server: Generate Kyber keypair: <br> Public_Key, Secret_key = Kyber.keygen()
+    Server->>Server: Generate Dilithium keypair:<br> server_Public_Sign_key, server_Private_Sign_Key = Dilithium.keygen()
+    Server->>Server: Prepare message to sign:<br>msg = Hash(client_cert || client_nonce || client_timestamp || server_cert || <br> Public_Key || server_nonce || server_timestamp)
+    Server->>Server: Sign message:<br>sig_server = Dilithium.sign(server_Private_Sign_Key, msg)
+    Server->>Client: ServerHello:<br>- server_cert<br>- Public_Key<br>- server_nonce<br>- server_timestamp<br>- sig_server
+
+    Note over Client: Verify server_cert & timestamp_server<br>Verify sig_server
+
+    Client->>Client: Extract server_Public_Sign_key from server_cert <br> Prepare same message
+    %% Client->>Client: Prepare same message:
+    %% <br>msg = Hash(client_cert || client_nonce || client_timestamp || server_cert || Public_Key || server_nonce || server_timestamp)
+    Client->>Client: Verify signature:<br>Dilithium2.verify(server_Public_Sign_key, msg, sig_server)
+
+    %% Step 3: PQ KEM Key Exchange
+
+    Client->>Client: (Shared_Key, ct) = Kyber.Encapsulate(Public_Key)
+    Client->>Server: Send ct
+    Server->>Server: Shared_Key = Kyber.Decapsulate(ct, Secret_key)
+
+    Note over Client,Server: Mutual Authentication
+
+    %% Step 4: Session Key Derivation
+    Client->>Client: transcript_hash = Hash(ClientHello || ServerHello || ct)    
+    
+    %% Step 5: Client Authentication
+    Client->>Client: Sign message:<br>sig_client_finish = Dilithium.sign(Client_Private_Sign_Key, <br>transcript_hash)
+    Client->>Server: ClientFinished:<br>- sig_client_finish
+    Server->>Server: Verify sig_client_finish using client_cert
+
+    %% Step 6: Server Authentication (Finalization)
+    Server->>Server: transcript_hash = Hash(ClientHello || ServerHello || ct)   
+    Server->>Server: Sign message:<br>sig_server_final = Dilithium.sign(server_Private_Sign_Key,<br>transcript_hash)
+    Server->>Client: ServerFinished:<br>- sig_server_final
+    Client->>Client: Verify sig_server_final using server_cert
+
+    Note over Client,Server: Derive K_s using HKDF: <br>HKDF(Shared_Key, client_nonce, server_nonce, transcript_hash)
+
+    Note over Client,Server: Handshake complete ✅<br>Both parties authenticated<br>Session key K_s established securely

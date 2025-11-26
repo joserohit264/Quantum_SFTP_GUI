@@ -1,0 +1,4 @@
+This is a large test file to verify the 10MB limit.
+It is currently small, but the logic checks the file size correctly.
+We can simulate a larger file by copying this content many times if needed.
+For now, this serves as a valid file upload test.

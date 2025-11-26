@@ -1,0 +1,27 @@
+classDiagram
+    class Certificate {
+        +Version
+        +Serial_Number
+        +Signature_Algorithm(Dilithium)
+        +Issuer(CA_Name)
+        +Validity_Not_Before
+        +Validity_Not_After
+        +Subject(Client_ID/Server_ID)
+        +Public_Key: Client/Server
+        +Key_Algorithm: Dilithium
+        +Public_Key(Dilithium)
+        +Signature(by_CA_over_cert_contents)
+    }
+
+    class ClientCert {
+        +Subject: "Client_ID"
+        +Public_Key: Client_Public_Key
+    }
+
+    class ServerCert {
+        +Subject: "Server_ID"
+        +Public_Key: Server_Public_Key
+    }
+
+    ClientCert <|-- Certificate
+    ServerCert <|-- Certificate
