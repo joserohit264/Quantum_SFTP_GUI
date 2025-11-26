@@ -30,7 +30,8 @@ Traditional secure file transfer protocols (like SFTP/SCP) rely on classical cry
 ### Setup Steps
 1.  **Clone/Navigate to the project root:**
     ```bash
-    cd Q-SFTP
+    git clone https://github.com/joserohit264/Q_SFTP.git
+    cd Q_SFTP
     ```
 
 2.  **Create and Activate Virtual Environment:**
