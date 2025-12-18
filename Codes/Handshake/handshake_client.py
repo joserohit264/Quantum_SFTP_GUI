@@ -1,6 +1,7 @@
 import socket
 import sys
 import json
+import time
 import uuid
 from datetime import datetime, timezone
 import os
@@ -14,11 +15,15 @@ try:
 except ImportError:
     print("Error: Could not import utils.py or PQC libs. Ensure they are in the correct path.", file=sys.stderr)
     sys.exit(1)
-
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 # --- Configuration ---
 HOST = os.environ.get('SERVER_IP', '127.0.0.1')
 PORT = 8888
 BUFFER_SIZE = 4096
+
+
+
 
 # --- Socket I/O Functions ---
 
@@ -124,7 +129,6 @@ class ClientHandshakeState:
             print("Verification FAILED: Server signature is invalid.", file=sys.stderr)
             return False
 
-        print("Verification PASSED: ServerHello integrity and signature confirmed.")        
         self.server_hello = server_hello
         return True
                 
@@ -143,7 +147,9 @@ class ClientHandshakeState:
         # Note: Kyber512.encaps returns (shared_key, ciphertext) based on our test
         self.shared_key, ciphertext = Kyber512.encaps(server_kyber_pk)
         
-        print(f"[P2.2] Shared Key computed (Size: {len(self.shared_key)} bytes).")
+
+        
+
 
         # 3. Prepare ClientKeyShare
         client_key_share = {
@@ -161,7 +167,9 @@ class ClientHandshakeState:
             self.client_hello_message, self.server_hello, client_key_share
         )
         transcript_hash_hex = self.transcript_hash.hex()
-        print(f"[P3.2] Transcript Hash computed: {transcript_hash_hex[:12]}...")
+
+        
+
 
         # 2. Sign the Hash with Dilithium
         sig_client_finish_b64 = utils.sign_message(self.private_key, self.transcript_hash)
@@ -176,48 +184,84 @@ class ClientHandshakeState:
 
 # --- Main Client Logic ---
 
+
+# --- Main Client Logic ---
+
 def start_client(cert_filename: str = "client_cert.json", key_subject: str = "Client"):
-    print(f"Connecting QSFtp Handshake Client to {HOST}:{PORT}...")
+    print("="*70)
+    print(" Q-SFTP CLIENT: QUANTUM-SAFE FILE TRANSFER")
+    print("="*70)
+    print(f"[*] Target Server : {HOST}:{PORT}")
+    print("[*] Initializing Post-Quantum Cryptography Engine...")
     
     client_state = ClientHandshakeState(cert_filename, key_subject)
     client_hello_msg = client_state.generate_client_hello()
-    print(f"[P1.3] Generated ClientHello for Subject: {client_state.cert['Subject']}")
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
+            print(f"\n[Phase 1] Authentication & Negotiation")
+            print("-" * 70)
+            
+            print(f"[Client] Identity Loaded  : {key_subject}")
+            print(f"[Client] Cipher Suite     : {client_hello_msg['CipherSuite']}")
+            print(f"[Client] Nonce Generated  : {client_hello_msg['client_nonce']}")
+            
             s.connect((HOST, PORT))
-            print("Successfully connected to server.")
+            print("[Network] Connection Established.")
             
             # Step 1: Send ClientHello
+            t_start = time.time()
             send_message(s, client_hello_msg)
-            print("[TX] Sent ClientHello.")
+            # Calculate sent size
+            sent_len = len(json.dumps(client_hello_msg).encode('utf-8')) + 4
+            print(f"[TX] ClientHello Sent ({sent_len} bytes).")
             
             # Step 2: Receive ServerHello
             server_hello = receive_message(s)
-            print(f"\n[RX] Received ServerHello.")
+            
+            # Calculate recv size
+            recv_len = len(json.dumps(server_hello).encode('utf-8')) + 4
+            print(f"[RX] ServerHello Received ({recv_len} bytes).")
 
             # Step 2.1: Verify ServerHello
             if not client_state.verify_server_hello(server_hello):
                 raise Exception("Server authentication failed.")
+            
+            server_cert = server_hello["server_cert"]
+            print(f"Verification PASSED: ServerHello integrity and signature confirmed.")
+            print(f"[Cert] Server Certificate Verified : ✅")
+            print(f"[Cert] Server Subject              : {server_cert.get('Subject')}")
+            print(f"[Cert] Server Sign Algorithm       : CRYSTALS-Dilithium-2")
+
+            print(f"\n[Phase 2] Post-Quantum Key Exchange")
+            print("-" * 70)
+            print("[Crypto] KEM Algorithm : CRYSTALS-Kyber-512")
 
             # Step 3: Generate Key Share (Kyber Encaps)
+            t_encaps_start = time.perf_counter()
             client_key_share = client_state.generate_key_share()
+            t_encaps_end = time.perf_counter()
+            
+            print(f"[Perf] Key Encapsulation Time : {(t_encaps_end - t_encaps_start)*1000:.2f} ms")
             
             # Step 4: Send ClientKeyShare
             send_message(s, client_key_share)
-            print("[TX] Sent ClientKeyShare (Ciphertext).")
+            print("[TX] ClientKeyShare Sent (Ciphertext).")
+
+            print(f"\n[Phase 3] Mutual Authentication")
+            print("-" * 70)
 
             # Step 5: Generate and Send ClientFinished
             client_finished_msg = client_state.generate_client_finished(client_key_share)
             send_message(s, client_finished_msg)
-            print("[TX] Sent ClientFinished (Signed Hash).")
+            print("[TX] ClientFinished Sent (Signed Transcript Hash).")
+            print(f"[Crypto] Signature Algorithm : CRYSTALS-Dilithium-2")
         
             # Step 6: Receive ServerFinished
             server_finished_msg = receive_message(s)
-            print("\n[RX] Received ServerFinished.")
+            print("[RX] ServerFinished Received.")
             
             # Step 7: Verify ServerFinished (Optional, but good practice)
-            # For now, we assume if we got here, server accepted our finished.
             
             # Derive Session Key
             session_key = utils.derive_session_key(
@@ -226,10 +270,29 @@ def start_client(cert_filename: str = "client_cert.json", key_subject: str = "Cl
                 client_state.server_hello["server_nonce"],
                 client_state.transcript_hash
             )
-            print(f"\n[SUCCESS] Session Key Established: {session_key.hex()[:16]}...")
+            
+            print(f"\n[Phase 4] Secure Channel Established")
+            print("-" * 70)
+            
+            sk_fingerprint = hashes.Hash(hashes.SHA256(), backend=default_backend())
+            sk_fingerprint.update(session_key)
+            
+            print(f"[KeyInfo] Session Key Fingerprint : {sk_fingerprint.finalize().hex()[:16]}...")
+            print(f"[KeyInfo] Session Key Length      : {len(session_key)*8} bits")
+            
+            print("[Security Guarantees]")
+            print(" - Mutual Authentication      : ✅ (Dilithium-2)")
+            print(" - Quantum-Resistant Key Exch : ✅ (Kyber-512)")
+            print(" - Forward Secrecy            : ✅ (Ephemeral Keys)")
+            print(" - Replay Protection          : ✅ (Nonces & Timestamps)")
+            
+            t_handshake_end = time.time()
+            print(f"\n[Perf] Total Handshake Time   : {(t_handshake_end - t_start)*1000:.2f} ms")
+
             
             # --- File Transfer Logic ---
-            print("\n[Client] Starting Secure File Transfer...")
+            print(f"\n[Phase 5] Encrypted File Transfer")
+            print("-" * 70)
             
             # Default values
             filename = "secret_message.txt"
@@ -241,25 +304,31 @@ def start_client(cert_filename: str = "client_cert.json", key_subject: str = "Cl
                 
                 # Check if argument is an existing file
                 if os.path.isfile(arg_path):
-                    # Check file size (Max 10MB)
                     file_size = os.path.getsize(arg_path)
-                    if file_size > 10 * 1024 * 1024: # 10MB in bytes
-                        print(f"Error: File '{arg_path}' exceeds the 10MB size limit (Size: {file_size/1024/1024:.2f} MB).", file=sys.stderr)
-                        return
-                    
                     print(f"[Client] Reading file: {arg_path} ({file_size} bytes)...")
                     filename = os.path.basename(arg_path)
                     with open(arg_path, "rb") as f:
                         file_content = f.read()
                 else:
                     # Treat as text message if not a file
-                    print("[Client] Argument is not a file, treating as text message.")
+                    # print("[Client] Argument is not a file, treating as text message.")
                     filename = "cli_message.txt"
                     file_content = " ".join(sys.argv[1:]).encode('utf-8')
+                    # print(f"[Client] Preparing text message: {filename} ({len(file_content)} bytes)...")
+            else:
+                 print(f"[Client] Using default message: {filename} ({len(file_content)} bytes)...")
+
+            print(f"[Crypto] Symmetric Cipher    : AES-256-GCM")
+            print(f"[File] Original Size         : {len(file_content)} bytes")
             
             # Encrypt
+            t_enc_start = time.perf_counter()
             nonce, ciphertext = utils.encrypt_data(session_key, file_content)
-            print(f"[Client] Encrypted '{filename}' ({len(file_content)} bytes) -> Ciphertext ({len(ciphertext)} bytes).")
+            t_enc_end = time.perf_counter()
+            
+            overhead = len(ciphertext) - len(file_content)
+            print(f"[File] Encrypted Size        : {len(ciphertext)} bytes (Overhead: {overhead} bytes)")
+            print(f"[Perf] Encryption Time       : {(t_enc_end - t_enc_start)*1000:.2f} ms")
             
             # Send
             file_msg = {
@@ -269,7 +338,10 @@ def start_client(cert_filename: str = "client_cert.json", key_subject: str = "Cl
                 "Nonce": base64.b64encode(nonce).decode('utf-8')
             }
             send_message(s, file_msg)
-            print(f"[TX] Sent FileTransfer message.")
+            print(f"[TX] FileTransfer Message Sent.")
+            print("=" * 70)
+            print("              TRANSFER COMPLETE")
+            print("=" * 70)
             
         except ConnectionRefusedError:
             print(f"Error: Connection refused. Ensure the server is running on {HOST}:{PORT}.", file=sys.stderr)

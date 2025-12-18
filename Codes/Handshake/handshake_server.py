@@ -1,6 +1,7 @@
 import socket
 import json
 import sys
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 import os
@@ -23,6 +24,24 @@ HOST = '0.0.0.0' # Listen on all network interfaces
 PORT = 8888
 BUFFER_SIZE = 4096
 SERVER_SUBJECT = "Server" 
+
+# --- Academic Output Helpers ---
+def print_banner():
+    print("\n" + "="*70)
+    print("   QUANTUM-RESISTANT SAFE FILE TRANSFER PROTOCOL (Q-SFTP)")
+    print("        SERVER-SIDE HANDSHAKE & SECURE CHANNEL")
+    print("="*70)
+    print("[Crypto] Cipher Suite Initialized:")
+    print("    - KEM Algorithm        : CRYSTALS-Kyber-512 (Post-Quantum Key Exchange)")
+    print("    - Signature Algorithm  : CRYSTALS-Dilithium-2 (Post-Quantum Auth)")
+    print("    - Symmetric Cipher     : AES-256-GCM (Authenticated Encryption)")
+    print("    - Hash Function        : SHA3-256")
+    print("-" * 70)
+
+def print_phase(phase_num, title):
+    print(f"\n[Phase {phase_num}] {title}")
+    print("-" * 40)
+ 
 
 # --- Socket I/O Functions ---
 
@@ -92,12 +111,11 @@ class ServerHandshakeState:
             return False
 
         client_cert = client_hello["client_cert"]
-        print(f"[P1.4] Received ClientHello from Subject: {client_cert.get('Subject')}")
-
         # 2. Check Client Certificate Validity
         if not utils.check_cert_validity(client_cert):
             print("Verification FAILED: Client certificate is not currently valid.")
             return False
+
         
         # 3. Verify Client Certificate Signature (using pinned CA key)
         ca_pub_key = utils.load_dilithium_public_key("CA") # Load CA public key bytes
@@ -114,7 +132,7 @@ class ServerHandshakeState:
             print("Verification FAILED: Client certificate signature is invalid (CA check).", file=sys.stderr)
             return False
         
-        # 4. Check Freshness
+        # 4. Check Freshness        
         client_ts_str = client_hello.get("client_timestamp")
         try:
             client_ts = datetime.strptime(client_ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
@@ -125,6 +143,7 @@ class ServerHandshakeState:
             print("Verification FAILED: Invalid client_timestamp format.")
             return False
 
+        print(f"[P1.4] Received ClientHello from Subject: {client_cert.get('Subject')}")
         print("Verification PASSED: ClientHello is valid and fresh.")
         return True
 
@@ -162,6 +181,7 @@ class ServerHandshakeState:
             "client_nonce": self.client_hello.get("client_nonce"),
         }
 
+        # Step 4: Sign the message with Dilithium
         # Step 4: Sign the message with Dilithium
         serialized_msg = utils.serialize_for_signing(message_to_sign)
         sig_server_b64 = utils.sign_message(self.private_key, serialized_msg)
@@ -222,7 +242,7 @@ class ServerHandshakeState:
             print("Verification FAILED: Client signature verification failed.", file=sys.stderr)
             return False
             
-        print("Verification PASSED: Client authenticated successfully.")
+        print("    [Auth] Client Signature      : ✅ VERIFIED (Proof of Possession)")
         return True
 
     def generate_server_finished(self) -> dict:
@@ -234,7 +254,11 @@ class ServerHandshakeState:
         self.session_key = utils.derive_session_key(
             self.shared_key, client_nonce, server_nonce, self.transcript_hash
         )
-        print(f"[P3.3] Session Key K_s derived (Size: {len(self.session_key)} bytes).")
+        sk_fingerprint = hashes.Hash(hashes.SHA256(), backend=default_backend())
+        sk_fingerprint.update(self.session_key)
+        print_phase(4, "Secure Channel Establishment")
+        print(f"    [KeyInfo] Session Key Derived : {len(self.session_key)*8} bits")
+        print(f"    [KeyInfo] Key Fingerprint     : {sk_fingerprint.finalize().hex()[:16]}... (Safe Metadata)")
 
         # 2. Sign the Hash with Dilithium
         sig_server_final_b64 = utils.sign_message(self.private_key, self.transcript_hash)
@@ -249,12 +273,24 @@ class ServerHandshakeState:
                 
 # --- Main Server Logic ---
 
+
+# --- Main Server Logic ---
+
 def start_server(cert_filename: str = "server_cert.json"):
-    print(f"Starting QSFtp Handshake Server on {HOST}:{PORT}...")
+    print("="*70)
+    print(" Q-SFTP SERVER: QUANTUM-SAFE FILE TRANSFER")
+    print("="*70)
+    print(f"[*] Binding to           : {HOST}:{PORT}")
+    print(f"[*] Server Subject       : {SERVER_SUBJECT}")
+    current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    print(f"[*] System Time          : {current_time}")
+    print("-" * 70)
+    print(f"[*] Identity Loaded      : {SERVER_SUBJECT}")
+    print("[*] Ready for PQC Handshake...")
     
     try:
         server_state = ServerHandshakeState(cert_filename)
-        print(f"[Init] Server ready with Subject: {server_state.server_cert['Subject']}")
+        # print(f"[Init] Server ready with Subject: {server_state.server_cert['Subject']}")
     except SystemExit:
         print("\nFATAL: Server setup failed.", file=sys.stderr)
         return
@@ -262,13 +298,15 @@ def start_server(cert_filename: str = "server_cert.json"):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen(1)
-        print("Waiting for a client connection...")
+        print("Waiting for a client connection...\n")
         
         conn, addr = s.accept()
         with conn:
-            print(f"Connection established with {addr}")
+            print(f"[New Connection] {addr[0]}:{addr[1]}")
+            print("-" * 70)
             
             try:
+                t_start_handshake = time.time()
                 # Step 1: Receive ClientHello
                 client_hello = receive_message(conn)
                 
@@ -277,12 +315,27 @@ def start_server(cert_filename: str = "server_cert.json"):
                     raise Exception("Client authentication failed.")
                 
                 server_hello_msg = server_state.generate_server_hello()
+                
+                # Print Client Details
+                client_cert = client_hello["client_cert"]
+                print(f"[Client] Subject             : {client_cert.get('Subject')}")
+                print(f"[Client] Issuer              : {client_cert.get('Issuer')}")
+                print(f"[Client] Cipher Suite        : {server_hello_msg['CipherSuite']}")
+                
                 send_message(conn, server_hello_msg)
-                print("[TX] Sent ServerHello (Signed).")
+                # Calculate size of sent message
+                sent_len = len(json.dumps(server_hello_msg).encode('utf-8')) + 4
+                print(f"[TX] ServerHello Sent ({sent_len} bytes).")
+                
+                print(f"\n[Phase 2] Post-Quantum Key Exchange")
+                print("-" * 70)
                 
                 # Step 3: Receive ClientKeyShare
                 client_key_share = receive_message(conn)
-                print("[RX] Received ClientKeyShare (Ciphertext).")
+                
+                # Calculate size of received message
+                recv_len = len(json.dumps(client_key_share).encode('utf-8')) + 4
+                print(f"[RX] ClientKeyShare Received ({recv_len} bytes).")
                 
                 # Step 4: Process KeyShare
                 if not server_state.receive_key_share(client_key_share):
@@ -292,23 +345,48 @@ def start_server(cert_filename: str = "server_cert.json"):
                 client_finished_msg = receive_message(conn)
                 print("[RX] Received ClientFinished.")
                 
+                print("\n--- DEBUG: Transcript Hash Calculation ---")
+                print("--- END DEBUG ---\n")
+                
                 # Step 6: Verify ClientFinished
                 if not server_state.verify_client_finished(client_finished_msg, client_key_share):
                     raise Exception("Mutual authentication failed.")
                     
+                print(f"\n[Phase 3] Mutual Authentication")
+                print("-" * 70)
+                    
                 # Step 7: Generate and Send ServerFinished
                 server_finished_msg = server_state.generate_server_finished()
                 send_message(conn, server_finished_msg)
-                print("[TX] Sent ServerFinished (Signed Hash).")
+                print("[TX] ServerFinished Sent (Signed Transcript Hash).")
+                print("[Crypto] Signature Algorithm : CRYSTALS-Dilithium-2")
             
-                print(f"\n✅ HANDSHAKE COMPLETE. Session Key K_s established.")
+                t_end_handshake = time.time()
+                # print(f"\n✅ HANDSHAKE COMPLETE. Session Key K_s established.")
+                
+                print(f"\n[Phase 4] Secure Channel Established")
+                print("-" * 70)
+                
+                sk_fingerprint = hashes.Hash(hashes.SHA256(), backend=default_backend())
+                sk_fingerprint.update(server_state.session_key)
+                
+                print(f"[KeyInfo] Session Key Fingerprint : {sk_fingerprint.finalize().hex()[:16]}...")
+                print(f"[KeyInfo] Session Key Length      : {len(server_state.session_key)*8} bits")
+                print("[Security Guarantees]")
+                print(" - Mutual Authentication      : ✅ (Verified Client Signature)")
+                print(" - Quantum-Resistant Key Exch : ✅ (Kyber-512 Decapsulation)")
+                print(" - Integrity Protected        : ✅ (Dilithium-2)")
                 
                 # --- File Transfer Logic ---
-                print("\n[Server] Waiting for File Transfer...")
+                print("\n[Phase 5] Encrypted File Transfer")
+                print("-" * 70)
+                print("[Server] Waiting for incoming encrypted stream...")
                 file_msg = receive_message(conn)
                 
                 if file_msg.get("Type") == "FileTransfer":
-                    print(f"[RX] Received FileTransfer message: {file_msg.get('Filename')}")
+                    print("[RX] Incoming FileTransfer Message.")
+                    print(f"[File] Filename              : {file_msg.get('Filename')}")
+                    print(f"[Crypto] Symmetric Cipher    : AES-256-GCM")
                     
                     # Decrypt
                     content_b64 = file_msg["Content"]
@@ -317,22 +395,46 @@ def start_server(cert_filename: str = "server_cert.json"):
                     content = base64.b64decode(content_b64)
                     nonce = base64.b64decode(nonce_b64)
                     
+                    print(f"[File] Encrypted Size        : {len(content)} bytes")
+                    
+                    t_dec_start = time.perf_counter()
                     plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
-                    print(f"[Server] Decrypted Content Size: {len(plaintext)} bytes")
+                    t_dec_end = time.perf_counter()
+                    
+                    print(f"[File] Decrypted Size        : {len(plaintext)} bytes")
+                    print(f"[Perf] Decryption Time       : {(t_dec_end - t_dec_start)*1000:.2f} ms")
+                    
+                    # Throughput calculation (bits/sec -> Mbps)
+                    throughput = (len(content) * 8) / ((t_dec_end - t_dec_start) * 1e6) if (t_dec_end - t_dec_start) > 0 else 0
+                    print(f"[Perf] Throughput            : {throughput:.2f} Mbps")
+                    
                     try:
                         # Try to print as text if small
                         if len(plaintext) < 1000:
-                            print(f"[Server] Content Preview: {plaintext.decode('utf-8')}")
+                            # Note: The image shows "[Data] Content : [Binary/Large Data...]" for PDF, 
+                            # but for text it might show content. User Prompt image shows PDF example. 
+                            # I will implement logic to show content if text, else binary indicator.
+                            # Actually, the user image shows: "[Data] Content : [Binary/Large Data - 122217 bytes]"
+                            # I'll stick to that if it's large or binary.
+                            decoded_text = plaintext.decode('utf-8')
+                            if len(decoded_text) < 100:
+                                print(f"[Data] Content               : {decoded_text}")
+                            else:
+                                 print(f"[Data] Content               : [Text Data - {len(plaintext)} bytes]")
                         else:
-                            print(f"[Server] Content is too large to preview.")
+                            print(f"[Data] Content               : [Binary/Large Data - {len(plaintext)} bytes]")
                     except:
-                        print("[Server] Content is binary.")
+                        print(f"[Data] Content               : [Binary/Large Data - {len(plaintext)} bytes]")
                     
                     # Save file
-                    save_path = f"received_{file_msg['Filename']}"
+                    save_path = os.path.abspath(f"received_{file_msg['Filename']}")
                     with open(save_path, "wb") as f:
                         f.write(plaintext)
-                    print(f"[Server] Saved file to {save_path}")
+                    print(f"[IO] File saved to           : {save_path}")
+                    
+                    print("=" * 70)
+                    print("              TRANSFER COMPLETE")
+                    print("=" * 70)
                 else:
                     print(f"[Server] Unexpected message type: {file_msg.get('Type')}")
                     
