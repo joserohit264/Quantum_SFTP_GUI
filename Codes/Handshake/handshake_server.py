@@ -377,71 +377,194 @@ def start_server(cert_filename: str = "server_cert.json"):
                 print(" - Quantum-Resistant Key Exch : ✅ (Kyber-512 Decapsulation)")
                 print(" - Integrity Protected        : ✅ (Dilithium-2)")
                 
-                # --- File Transfer Logic ---
-                print("\n[Phase 5] Encrypted File Transfer")
+                # --- Command Loop ---
+                print("\n[Phase 5] Secure Command Loop")
                 print("-" * 70)
-                print("[Server] Waiting for incoming encrypted stream...")
-                file_msg = receive_message(conn)
                 
-                if file_msg.get("Type") == "FileTransfer":
-                    print("[RX] Incoming FileTransfer Message.")
-                    print(f"[File] Filename              : {file_msg.get('Filename')}")
-                    print(f"[Crypto] Symmetric Cipher    : AES-256-GCM")
-                    
-                    # Decrypt
-                    content_b64 = file_msg["Content"]
-                    nonce_b64 = file_msg["Nonce"]
-                    
-                    content = base64.b64decode(content_b64)
-                    nonce = base64.b64decode(nonce_b64)
-                    
-                    print(f"[File] Encrypted Size        : {len(content)} bytes")
-                    
-                    t_dec_start = time.perf_counter()
-                    plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
-                    t_dec_end = time.perf_counter()
-                    
-                    print(f"[File] Decrypted Size        : {len(plaintext)} bytes")
-                    print(f"[Perf] Decryption Time       : {(t_dec_end - t_dec_start)*1000:.2f} ms")
-                    
-                    # Throughput calculation (bits/sec -> Mbps)
-                    throughput = (len(content) * 8) / ((t_dec_end - t_dec_start) * 1e6) if (t_dec_end - t_dec_start) > 0 else 0
-                    print(f"[Perf] Throughput            : {throughput:.2f} Mbps")
-                    
-                    try:
-                        # Try to print as text if small
-                        if len(plaintext) < 1000:
-                            # Note: The image shows "[Data] Content : [Binary/Large Data...]" for PDF, 
-                            # but for text it might show content. User Prompt image shows PDF example. 
-                            # I will implement logic to show content if text, else binary indicator.
-                            # Actually, the user image shows: "[Data] Content : [Binary/Large Data - 122217 bytes]"
-                            # I'll stick to that if it's large or binary.
-                            decoded_text = plaintext.decode('utf-8')
-                            if len(decoded_text) < 100:
-                                print(f"[Data] Content               : {decoded_text}")
-                            else:
-                                 print(f"[Data] Content               : [Text Data - {len(plaintext)} bytes]")
-                        else:
-                            print(f"[Data] Content               : [Binary/Large Data - {len(plaintext)} bytes]")
-                    except:
-                        print(f"[Data] Content               : [Binary/Large Data - {len(plaintext)} bytes]")
-                    
-                    # Save file
-                    save_path = os.path.abspath(f"received_{file_msg['Filename']}")
-                    with open(save_path, "wb") as f:
-                        f.write(plaintext)
-                    print(f"[IO] File saved to           : {save_path}")
-                    
-                    print("=" * 70)
-                    print("              TRANSFER COMPLETE")
-                    print("=" * 70)
+                # Setup Storage Root
+                STORAGE_ROOT = os.path.abspath("ServerStorage")
+                if not os.path.exists(STORAGE_ROOT):
+                    os.makedirs(STORAGE_ROOT)
+                    print(f"[Init] Created Storage Root: {STORAGE_ROOT}")
                 else:
-                    print(f"[Server] Unexpected message type: {file_msg.get('Type')}")
+                    print(f"[Init] Using Storage Root: {STORAGE_ROOT}")
+
+                while True:
+                    print("[Server] Waiting for encrypted command...")
+                    try:
+                        msg = receive_message(conn)
+                    except (ConnectionAbortedError, ConnectionResetError):
+                        print("[Server] Client disconnected (Connection Closed).")
+                        break
+                    except Exception as e:
+                        print(f"[Server] Error receiving message: {e}")
+                        break
+                        
+                    msg_type = msg.get("Type")
                     
-            except Exception as e:
-                print(f"Handshake failed: {e}", file=sys.stderr)
+                    if msg_type == "ListFiles":
+                        path = msg.get("Path", "")
+                        # Security: Prevent escaping Storage Root
+                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
+                        if not target_dir.startswith(STORAGE_ROOT):
+                            target_dir = STORAGE_ROOT # Fallback to root if malicious path
+                        
+                        print(f"[RX] Command: ListFiles (Path: /{path})")
+                        
+                        files = []
+                        try:
+                            if os.path.exists(target_dir) and os.path.isdir(target_dir):
+                                for f in os.listdir(target_dir):
+                                    full_path = os.path.join(target_dir, f)
+                                    stats = os.stat(full_path)
+                                    is_dir = os.path.isdir(full_path)
+                                    files.append({
+                                        "name": f,
+                                        "type": "dir" if is_dir else "file",
+                                        "size": stats.st_size if not is_dir else 0,
+                                        "modified": datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                                    })
+                        except Exception as e:
+                            print(f"[Error] Listing failed: {e}")
+
+                        response = {
+                            "Type": "FileList",
+                            "Files": files,
+                            "Path": path
+                        }
+                        send_message(conn, response)
+                        print(f"[TX] Sent FileList ({len(files)} items).")
+
+                    elif msg_type == "FileTransfer":
+                        # Upload to Server
+                        filename = msg.get('Filename')
+                        path = msg.get("Path", "")
+                        print(f"[RX] Incoming FileTransfer: {filename} (to /{path})")
+                        
+                        # Decrypt
+                        content_b64 = msg["Content"]
+                        nonce_b64 = msg["Nonce"]
+                        
+                        content = base64.b64decode(content_b64)
+                        nonce = base64.b64decode(nonce_b64)
+                        
+                        plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
+                        
+                        # Save file
+                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
+                        if not target_dir.startswith(STORAGE_ROOT):
+                            target_dir = STORAGE_ROOT
+                        if not os.path.exists(target_dir):
+                            os.makedirs(target_dir)
+                            
+                        save_path = os.path.join(target_dir, filename)
+                        with open(save_path, "wb") as f:
+                            f.write(plaintext)
+                        print(f"[IO] File saved to: {save_path}")
+                        
+                        # Send Ack
+                        ack = {
+                            "Type": "TransferAck",
+                            "Status": "Success",
+                            "Filename": filename
+                        }
+                        send_message(conn, ack)
+                        print(f"[TX] Sent TransferAck.")
+                        
+                    elif msg_type == "DownloadFile":
+                        # Download from Server
+                        filename = msg.get('Filename')
+                        path = msg.get("Path", "")
+                        print(f"[RX] Command: DownloadFile {filename} (from /{path})")
+                        
+                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
+                        if not target_dir.startswith(STORAGE_ROOT):
+                            target_dir = STORAGE_ROOT
+                        
+                        file_path = os.path.join(target_dir, filename)
+                        
+                        if os.path.exists(file_path) and os.path.isfile(file_path):
+                            with open(file_path, "rb") as f:
+                                content = f.read()
+                            
+                            # Encrypt
+                            nonce, ciphertext = utils.encrypt_data(server_state.session_key, content)
+                            
+                            # Send FileTransfer message back
+                            file_msg = {
+                                "Type": "FileTransfer",
+                                "Filename": filename,
+                                "Content": base64.b64encode(ciphertext).decode('utf-8'),
+                                "Nonce": base64.b64encode(nonce).decode('utf-8'),
+                                "OriginalType": "Download" 
+                            }
+                            send_message(conn, file_msg)
+                            print(f"[TX] Sent FileTransfer (Download) - {len(content)} bytes")
+                        else:
+                            error_msg = {"Type": "Error", "Message": "File not found"}
+                            send_message(conn, error_msg)
+                            print(f"[TX] Sent Error (File not found)")
+
+                    elif msg_type == "CreateDir":
+                        foldername = msg.get('Foldername')
+                        path = msg.get("Path", "")
+                        print(f"[RX] Command: CreateDir {foldername} (in /{path})")
+                        
+                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path, foldername))
+                        if not target_dir.startswith(STORAGE_ROOT):
+                             target_dir = STORAGE_ROOT
+                             
+                        try:
+                            if not os.path.exists(target_dir):
+                                os.makedirs(target_dir)
+                                ack = {"Type": "ActionAck", "Status": "Success"}
+                            else:
+                                ack = {"Type": "ActionAck", "Status": "Exists"}
+                        except Exception as e:
+                            ack = {"Type": "ActionAck", "Status": "Error", "Message": str(e)}
+                            
+                        send_message(conn, ack)
+                        print(f"[TX] Sent ActionAck.")
+
+                    elif msg_type == "DeletePath":
+                        filename = msg.get('Filename')
+                        path = msg.get("Path", "")
+                        print(f"[RX] Command: DeletePath {filename} (from /{path})")
+                        
+                        target_path = os.path.normpath(os.path.join(STORAGE_ROOT, path, filename))
+                        
+                        # Security Check
+                        if not target_path.startswith(STORAGE_ROOT) or target_path == STORAGE_ROOT:
+                            ack = {"Type": "ActionAck", "Status": "Error", "Message": "Permission Denied"}
+                        elif os.path.exists(target_path):
+                            try:
+                                if os.path.isdir(target_path):
+                                    # For safety, only allow deleting empty dirs or handle recursively if needed.
+                                    # Let's use shutil.rmtree for full directory delete as typical in FTP
+                                    import shutil
+                                    shutil.rmtree(target_path)
+                                else:
+                                    os.remove(target_path)
+                                ack = {"Type": "ActionAck", "Status": "Success"}
+                            except Exception as e:
+                                ack = {"Type": "ActionAck", "Status": "Error", "Message": str(e)}
+                        else:
+                            ack = {"Type": "ActionAck", "Status": "Error", "Message": "File not found"}
+                            
+                        send_message(conn, ack)
+                        print(f"[TX] Sent ActionAck (Delete).")
+
+                    elif msg_type == "Disconnect":
+                        print("[RX] Disconnect Request.")
+                        break
+                    
+                    else:
+                        print(f"[Server] Unknown message type: {msg_type}")
             
-            print("Server process finished.")
+            except Exception as e:
+                print(f"Session Error: {e}", file=sys.stderr)
+            
+            print("Session ended.")
 
 if __name__ == '__main__':
     start_server()

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Q-SFTP</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-logo">
+                <i class="fa-solid fa-atom fa-spin-pulse"></i>
+                <h1>Q-SFTP</h1>
+                <p>Quantum-Safe Secure Transfer</p>
+            </div>
+
+            <div class="login-form">
+                <div class="input-group-vertical">
+                    <label>Host IP</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-network-wired"></i>
+                        <input type="text" id="host-ip" value="127.0.0.1" placeholder="127.0.0.1">
+                    </div>
+                </div>
+
+                <div class="input-group-vertical">
+                    <label>Server Port</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-server"></i>
+                        <input type="number" id="host-port" value="8888" placeholder="8888">
+                    </div>
+                </div>
+
+                <button id="btn-login" onclick="loginToServer()">
+                    Establish Secure Connection <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <div class="login-footer">
+                <p><i class="fa-solid fa-shield-halved"></i> Protected by Kyber-512 & Dilithium-2</p>
+                <div class="theme-switch-wrapper">
+                    <button class="btn-theme-login" onclick="toggleThemeLogin()" title="Toggle Theme">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple inline script for Login logic
+        async function loginToServer() {
+            const ip = document.getElementById('host-ip').value;
+            const port = document.getElementById('host-port').value;
+            const btn = document.getElementById('btn-login');
+
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Handshaking...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, port })
+                });
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                // On success, reload to go to dashboard (/)
+                window.location.href = "/";
+
+            } catch (err) {
+                alert(`Connection Failed: ${err.message}`);
+                btn.innerHTML = 'Establish Secure Connection <i class="fa-solid fa-arrow-right"></i>';
+                btn.disabled = false;
+            }
+        }
+
+        // Theme Logic for Login Page
+        function toggleThemeLogin() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next); // Persist
+
+            const icon = document.querySelector('.btn-theme-login i');
+            icon.className = next === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+
+        // Auto-load theme
+        const saved = localStorage.getItem('theme');
+        if (saved) {
+            document.documentElement.setAttribute('data-theme', saved);
+            document.querySelector('.btn-theme-login i').className = saved === 'light' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        }
+    </script>
+</body>
+
+</html>
