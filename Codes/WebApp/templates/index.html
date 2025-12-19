@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q-SFTP | Quantum-Safe File Transfer</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <!-- Header / Connection Bar -->
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-atom"></i> Q-SFTP
+        </div>
+
+        <div class="connection-bar">
+            <div class="status-item text-success" style="font-size: 0.9rem; margin-right: 1rem;">
+                <i class="fa-solid fa-link"></i> Connected
+            </div>
+            <button id="btn-theme-toggle" class="btn-theme" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <button id="btn-disconnect" class="btn btn-sm btn-outline"
+                style="border-color: var(--danger); color: var(--danger);" onclick="disconnectFromServer()">
+                <i class="fa-solid fa-power-off"></i> Disconnect
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content: Dual Panes -->
+    <main>
+        <!-- Local Pane -->
+        <section class="pane" id="local-pane">
+            <div class="pane-header">
+                <div class="pane-title"><i class="fa-solid fa-laptop"></i> Local Site</div>
+                <div class="breadcrumbs">
+                    <input type="text" id="local-path-input" value="C:/" readonly>
+                    <button onclick="navigateUp('local')"><i class="fa-solid fa-arrow-up"></i></button>
+                </div>
+            </div>
+            <div class="file-list" id="local-file-list">
+                <!-- JS will populate this -->
+                <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
+            </div>
+        </section>
+
+        <!-- Action / Spacer -->
+        <div class="pane-divider">
+            <button id="btn-upload" class="action-btn" disabled onclick="uploadSelected()">
+                Upload <i class="fa-solid fa-arrow-right"></i>
+            </button>
+            <br>
+            <button id="btn-download" class="action-btn" disabled>
+                <i class="fa-solid fa-arrow-left"></i> Download
+            </button>
+        </div>
+
+        <!-- Remote Pane -->
+        <section class="pane" id="remote-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <i class="fa-solid fa-server"></i> Remote Site
+                    <div class="remote-actions">
+                        <button id="btn-new-folder" class="btn-icon" title="New Folder" disabled
+                            onclick="createRemoteFolder()">
+                            <i class="fa-solid fa-folder-plus"></i>
+                        </button>
+                        <button id="btn-delete" class="btn-icon" title="Delete Selection" disabled
+                            onclick="deleteRemoteSelection()">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="breadcrumbs">
+                    <input type="text" id="remote-path-input" value="/" readonly>
+                    <button id="btn-remote-up" disabled onclick="navigateUp('remote')"><i
+                            class="fa-solid fa-arrow-up"></i></button>
+                    <button id="btn-download-remote" class="btn-icon" title="Download" disabled
+                        onclick="downloadSelected()">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="file-list" id="remote-file-list">
+                <div class="empty-state">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <p>Not Connected</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Transfer Queue -->
+    <section class="transfer-queue">
+        <div class="queue-header">
+            <span><i class="fa-solid fa-list-check"></i> Transfer Queue</span>
+            <span class="badge" id="queue-count">0</span>
+        </div>
+        <div class="queue-list" id="queue-list">
+            <!-- Queue items go here -->
+        </div>
+    </section>
+
+    <!-- Status Bar -->
+    <footer>
+        <div class="status-item" id="status-conn">
+            <i class="fa-solid fa-circle-xmark text-danger"></i> Disconnected
+        </div>
+        <div class="status-spacer"></div>
+        <div class="status-item security-info">
+            <span class="pqc-badge hidden" id="pqc-kyber"><i class="fa-solid fa-shield-halved"></i> Kyber-512</span>
+            <span class="pqc-badge hidden" id="pqc-dilithium"><i class="fa-solid fa-signature"></i> Dilithium-2</span>
+            <span class="pqc-badge hidden" id="pqc-aes"><i class="fa-solid fa-lock"></i> AES-256-GCM</span>
+        </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

@@ -1,120 +1,67 @@
 # Q-SFTP: Quantum-Safe Secure File Transfer Protocol
 
 ## 1. Problem Statement
-Traditional secure file transfer protocols (like SFTP/SCP) rely on classical cryptographic algorithms such as RSA and Diffie-Hellman. These algorithms are vulnerable to attacks from future large-scale quantum computers (Shor's Algorithm). As quantum computing advances, data encrypted today using these classical methods could be decrypted in the future ("Harvest Now, Decrypt Later").
-
-**Q-SFTP** addresses this threat by implementing a **Post-Quantum Cryptography (PQC)** handshake. It replaces classical key exchange and signatures with quantum-resistant algorithms to ensure long-term security for sensitive file transfers.
+Traditional secure file transfer protocols (like SFTP/SCP) rely on classical cryptographic algorithms such as RSA and Diffie-Hellman, which are vulnerable to future quantum computer attacks (Shor's Algorithm). **Q-SFTP** addresses this by implementing a **Post-Quantum Cryptography (PQC)** handshake, ensuring long-term data security against "Harvest Now, Decrypt Later" threats.
 
 ## 2. Tech Stack
 *   **Language**: Python 3.x
-*   **Key Encapsulation Mechanism (KEM)**: [Kyber512](https://pypi.org/project/kyber-py/) (NIST PQC Winner for KEM)
-*   **Digital Signatures**: [Dilithium2](https://pypi.org/project/dilithium-py/) (NIST PQC Winner for Signatures)
-*   **Symmetric Encryption**: AES-256-GCM (for file encryption)
-*   **Networking**: Python `socket` (TCP/IP)
-*   **Environment**: Windows / WSL (Ubuntu) / Linux
+*   **Web Framework**: Flask (for Web GUI)
+*   **Key Encapsulation (KEM)**: [Kyber512](https://pypi.org/project/kyber-py/) (NIST PQC Winner)
+*   **Digital Signatures**: [Dilithium2](https://pypi.org/project/dilithium-py/) (NIST PQC Winner)
+*   **Symmetric Encryption**: AES-256-GCM
+*   **Frontend**: HTML5, CSS3 (Variables for Theming), Vanilla JavaScript
 
-## 3. Features
-*   **Quantum-Safe Handshake**: Uses **Kyber512** for establishing a shared secret and **Dilithium2** for mutual authentication (Client & Server).
-*   **Secure File Transfer**: Files are encrypted using **AES-GCM** with a session key derived from the quantum-safe handshake.
-*   **Integrity & Authenticity**: Every handshake message is signed and verified. File integrity is ensured by AES-GCM authentication tags.
-*   **Cross-Device Support**: Works over Local Area Network (LAN) between different devices.
-*   **CLI Interface**: Simple command-line tools for server and client.
-*   **File Support**: Supports transferring text, images, PDFs, and binary files (up to 10MB).
+## 3. Key Features
+*   **Quantum-Safe Security**: Kyber512 for key exchange + Dilithium2 for authentication.
+*   **Web GUI Dashboard**:
+    *   **Dual-Pane Interface**: Familiar Local vs. Remote file browser.
+    *   **Secure Login**: Authenticated session management.
+    *   **File Operations**: Upload, Download, Create Folder, and **Secure Delete**.
+    *   **Premium Themes**: toggle between professional **Dark** and **Light** modes.
+*   **Encrypted Storage**: Files are encrypted in transit and can be stored securely.
+*   **Cross-Platform**: Works on Windows, Linux, and via LAN.
 
-## 4. Installation & Setup
+## 4. Quick Start (Windows)
+The easiest way to run the application is using the included batch script:
+
+1.  **Double-click `start_q_sftp.bat`** in the project root.
+2.  This will:
+    *   Start the Secure Server.
+    *   Start the Web Client.
+    *   Open your browser to the Login Page (`http://127.0.0.1:5000`).
+3.  **Login**:
+    *   Host: `127.0.0.1` (or server IP)
+    *   Port: `8888`
+
+## 5. Manual Setup & Usage
 
 ### Prerequisites
 *   Python 3.8+
-*   Virtual Environment (Recommended)
+*   `pip install -r requirements.txt`
 
-### Setup Steps
-1.  **Clone/Navigate to the project root:**
-    ```bash
-    git clone https://github.com/joserohit264/Q_SFTP.git
-    cd Q_SFTP
-    ```
-
-2.  **Create and Activate Virtual Environment:**
-    *   **Linux/WSL:**
-        ```bash
-        python3 -m venv venv
-        source venv/bin/activate
-        ```
-    *   **Windows (PowerShell):**
-        ```powershell
-        python -m venv venv
-        .\venv\Scripts\Activate.ps1
-        ```
-
-3.  **Install Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## 5. Usage Commands
-
-### Scenario A: Same Device (Two Terminal Tabs)
-Use this for local testing and development.
-
-**Terminal 1 (Server):**
+### Running Manually
+**1. Start the Server:**
 ```bash
-cd Codes/Handshake
-python handshake_server.py
+python Codes/Handshake/handshake_server.py
 ```
 
-**Terminal 2 (Client):**
-You can send a text message or a file.
+**2. Start the Web Client:**
 ```bash
-cd Codes/Handshake
-
-# Send a text message
-python handshake_client.py "Hello Quantum World!"
-
-# Send a file (Relative Path)
-python handshake_client.py my_document.pdf
-
-# Send a file (Absolute Path - WSL Example)
-python handshake_client.py "/mnt/c/Users/ADMIN/Pictures/image.jpg"
+python Codes/WebApp/app.py
 ```
 
----
-
-### Scenario B: Across Different Devices (LAN)
-Use this to transfer files between two computers on the same Wi-Fi/Network.
-
-**Device 1 (Server):**
-1.  Find your Local IP Address:
-    *   **Windows**: `ipconfig` (Look for IPv4 Address, e.g., `192.168.1.10`)
-    *   **Linux/WSL**: `ip addr` or `hostname -I`
-2.  Start the Server:
-    ```bash
-    cd Codes/Handshake
-    python handshake_server.py
-    ```
-
-**Device 2 (Client):**
-1.  Set the `SERVER_IP` environment variable to Device 1's IP address.
-2.  Run the client.
-
-*   **Linux / macOS / WSL:**
-    ```bash
-    export SERVER_IP="192.168.1.10"  # Replace with Server's IP
-    python handshake_client.py "secret_file.txt"
-    ```
-
-*   **Windows (PowerShell):**
-    ```powershell
-    $env:SERVER_IP="192.168.1.10"
-    python handshake_client.py "secret_file.txt"
-    ```
-
-*   **Windows (CMD):**
-    ```cmd
-    set SERVER_IP=192.168.1.10
-    python handshake_client.py "secret_file.txt"
-    ```
+**3. Access the Interface:**
+Open your browser and navigate to: `http://127.0.0.1:5000`
 
 ## 6. Project Structure
-*   `Codes/Handshake/`: Contains the core protocol logic (`handshake_server.py`, `handshake_client.py`, `utils.py`).
-*   `Codes/CA/`: Certificate Authority tools for generating Dilithium keys and certificates.
-*   `keys/` & `certs/`: Stores the generated cryptographic assets.
+*   `Codes/Handshake/`: Core PQC protocol server & client logic.
+*   `Codes/WebApp/`: Flask application, templates (Login/Dashboard), and static assets.
+*   `Codes/CA/`: Certificate Authority tools.
+*   `ServerStorage/`: Designated root directory for secure server file storage.
+
+## 7. CLI Usage (Optional)
+You can still use the command line for headless operations:
+```bash
+# Send a file
+python Codes/Handshake/handshake_client.py "my_secret.txt"
+```
