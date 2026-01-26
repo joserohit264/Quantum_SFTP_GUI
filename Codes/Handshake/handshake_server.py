@@ -91,18 +91,16 @@ class ServerHandshakeState:
         self.server_cert = utils.load_cert(cert_filename)
         self.private_key = utils.load_dilithium_private_key(SERVER_SUBJECT)
         
-        # Handshake state variables
         self.client_hello = None
         self.server_hello = None
         self.server_nonce = None
         self.server_timestamp = None
-        self.kyber_sk = None # Ephemeral Kyber Secret Key
+        self.kyber_sk = None 
         self.shared_key = None
         self.transcript_hash = None
         self.session_key = None
 
     def verify_client_hello(self, client_hello: dict) -> bool:
-        """Performs basic checks on the received ClientHello."""
         self.client_hello = client_hello
 
         # 1. Check basic structure
@@ -116,9 +114,8 @@ class ServerHandshakeState:
             print("Verification FAILED: Client certificate is not currently valid.")
             return False
 
-        
         # 3. Verify Client Certificate Signature (using pinned CA key)
-        ca_pub_key = utils.load_dilithium_public_key("CA") # Load CA public key bytes
+        ca_pub_key = utils.load_dilithium_public_key("CA") 
         cert_full = client_cert.copy()
         
         cert_signature_b64 = cert_full.pop("Signature", None)
@@ -148,23 +145,17 @@ class ServerHandshakeState:
         return True
 
     def generate_server_hello(self) -> dict:
-        """Generates the ServerHello message, including Kyber public key and Dilithium signature."""
-        
-        # Step 1: Generate Ephemeral Kyber Keypair
         print("[P1.4] Generating Kyber Ephemeral Keys...")
         pk, sk = Kyber512.keygen()
         self.kyber_sk = sk
         kyber_pk_b64 = base64.b64encode(pk).decode('utf-8')
 
-        # Step 2: Generate Server Nonce and Timestamp
         self.server_nonce = uuid.uuid4().hex
         self.server_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Step 3: Prepare the message to be signed
         cleaned_server_cert = utils.clean_cert(self.server_cert)
         cleaned_client_cert = utils.clean_cert(self.client_hello.get("client_cert", {}))
         
-        # Hash the client's certificate
         client_cert_data_for_hash = utils.serialize_for_signing(cleaned_client_cert)
         h = hashes.Hash(hashes.SHA256(), backend=default_backend())
         h.update(client_cert_data_for_hash)
@@ -173,7 +164,7 @@ class ServerHandshakeState:
         message_to_sign = {
             "Type": "ServerHello",
             "server_cert": cleaned_server_cert,
-            "server_key_share": kyber_pk_b64, # Ephemeral Kyber PK
+            "server_key_share": kyber_pk_b64,
             "server_nonce": self.server_nonce,
             "server_timestamp": self.server_timestamp,
             "CipherSuite": "KYBER512_DILITHIUM2",
@@ -181,63 +172,50 @@ class ServerHandshakeState:
             "client_nonce": self.client_hello.get("client_nonce"),
         }
 
-        # Step 4: Sign the message with Dilithium
-        # Step 4: Sign the message with Dilithium
         serialized_msg = utils.serialize_for_signing(message_to_sign)
         sig_server_b64 = utils.sign_message(self.private_key, serialized_msg)
         
         print("[P1.4] Server successfully signed the handshake transcript.")
 
-        # Step 5: Construct the final ServerHello message
         self.server_hello = message_to_sign
         self.server_hello["Signature"] = sig_server_b64
         
         return self.server_hello
                 
     def receive_key_share(self, client_key_share: dict) -> bool:
-        """Phase 2: Receives client's Kyber ciphertext and decapsulates."""
         if client_key_share.get("Type") != "ClientKeyShare" or "client_ciphertext" not in client_key_share:
             print("Decapsulation FAILED: Invalid ClientKeyShare message.", file=sys.stderr)
             return False
 
-        # 1. Load client's ciphertext
         ciphertext_b64 = client_key_share["client_ciphertext"]
         ciphertext = base64.b64decode(ciphertext_b64)
 
-        # 2. Decapsulate -> Shared Secret
         if not self.kyber_sk:
              raise Exception("Kyber Secret Key not initialized.")
              
         self.shared_key = Kyber512.decaps(self.kyber_sk, ciphertext)
         print(f"[P2.3] Shared Key computed (Size: {len(self.shared_key)} bytes).")
-        
         return True
 
     def verify_client_finished(self, client_finished: dict, client_key_share: dict) -> bool:
-        """Phase 3: Verifies the client's signature over the transcript."""
-        # 1. Re-calculate Transcript Hash
         self.transcript_hash = utils.calculate_transcript_hash(
             self.client_hello, self.server_hello, client_key_share
         )
         transcript_hash_hex = self.transcript_hash.hex()
         print(f"[P3.3] Transcript Hash computed: {transcript_hash_hex[:12]}...")
 
-        # 2. Verify Transcript Hash
         if client_finished.get("transcript_hash") != transcript_hash_hex:
             print("Verification FAILED: Transcript hash mismatch.", file=sys.stderr)
             return False
             
-        # 3. Verify Client Signature
         sig_client_finish_b64 = client_finished.get("Signature")
         if not sig_client_finish_b64:
             print("Verification FAILED: Client finished message missing signature.", file=sys.stderr)
             return False
 
-        # Get Client's Public Key from their certificate
         client_cert = self.client_hello["client_cert"]
         client_pub_key = utils.get_public_key_from_cert(client_cert)
         
-        # Verify the signature
         if not utils.verify_signature(client_pub_key, self.transcript_hash, sig_client_finish_b64):
             print("Verification FAILED: Client signature verification failed.", file=sys.stderr)
             return False
@@ -246,8 +224,6 @@ class ServerHandshakeState:
         return True
 
     def generate_server_finished(self) -> dict:
-        """Phase 3: Signs the transcript hash and derives the session key."""
-        # 1. Derive Final Session Key
         client_nonce = self.client_hello["client_nonce"]
         server_nonce = self.server_nonce
         
@@ -260,311 +236,258 @@ class ServerHandshakeState:
         print(f"    [KeyInfo] Session Key Derived : {len(self.session_key)*8} bits")
         print(f"    [KeyInfo] Key Fingerprint     : {sk_fingerprint.finalize().hex()[:16]}... (Safe Metadata)")
 
-        # 2. Sign the Hash with Dilithium
         sig_server_final_b64 = utils.sign_message(self.private_key, self.transcript_hash)
         
-        # 3. Prepare message
         server_finished_msg = {
             "Type": "ServerFinished",
             "Signature": sig_server_final_b64,
             "transcript_hash": self.transcript_hash.hex()
         }
         return server_finished_msg
+
+
+# --- Main Handler ---
+
+def handle_client(conn, addr, server_state):
+    print(f"[New Connection] {addr[0]}:{addr[1]}")
+    print("-" * 70)
+    
+    # Setup Storage Root
+    STORAGE_ROOT = os.path.abspath("ServerStorage")
+    if not os.path.exists(STORAGE_ROOT):
+        os.makedirs(STORAGE_ROOT)
+    
+    try:
+        t_start_handshake = time.time()
+        # Step 1: Receive ClientHello
+        client_hello = receive_message(conn)
+        
+        # Step 2: Verify ClientHello & Send ServerHello
+        if not server_state.verify_client_hello(client_hello):
+            raise Exception("Client authentication failed.")
+        
+        server_hello_msg = server_state.generate_server_hello()
+        
+        client_cert = client_hello["client_cert"]
+        print_phase(1, f"Handshake Initiated with {client_cert['Subject']}")
+        
+        send_message(conn, server_hello_msg)
+        print("[TX] ServerHello Sent (Signed & Kyber PK).")
+        
+        # Step 3: Receive Client Key Share (Kyber Encapsulation)
+        client_key_share = receive_message(conn)
+        if not server_state.receive_key_share(client_key_share):
+            raise Exception("Key exchange failed.")
+        print_phase(2, "Key Exchange (Kyber-512)")
+        
+        # Step 4: Receive ClientFinished
+        client_finished_msg = receive_message(conn)
+        
+        # Step 6: Verify ClientFinished
+        if not server_state.verify_client_finished(client_finished_msg, client_key_share):
+            raise Exception("Mutual authentication failed.")
+            
+        print(f"\n[Phase 3] Mutual Authentication")
+        print("-" * 70)
+            
+        # Step 7: Generate and Send ServerFinished
+        server_finished_msg = server_state.generate_server_finished()
+        send_message(conn, server_finished_msg)
+        print("[TX] ServerFinished Sent.")
+    
+        t_end_handshake = time.time()
+        print(f"\n[Phase 4] Secure Channel Established")
+        print("-" * 70)
+        
+        sk_fingerprint = hashes.Hash(hashes.SHA256(), backend=default_backend())
+        sk_fingerprint.update(server_state.session_key)
+        
+        print(f"[KeyInfo] Session Key Fingerprint : {sk_fingerprint.finalize().hex()[:16]}...")
+        print("[Security Guarantees]")
+        print(" - Mutual Authentication      : ✅")
+        print(" - Quantum-Resistant Key Exch : ✅")
+        print(" - Integrity Protected        : ✅")
+        
+        # --- Command Loop ---
+        print("\n[Phase 5] Secure Command Loop")
+        print("-" * 70)
+
+        while True:
+            print("[Server] Waiting for encrypted command...")
+            try:
+                msg = receive_message(conn)
+            except (ConnectionAbortedError, ConnectionResetError):
+                print("[Server] Client disconnected.")
+                break
+            except Exception as e:
+                print(f"[Server] Error receiving message: {e}")
+                break
                 
-# --- Main Server Logic ---
+            msg_type = msg.get("Type")
+            
+            if msg_type == "ListFiles":
+                path = msg.get("Path", "")
+                target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
+                if not target_dir.startswith(STORAGE_ROOT): target_dir = STORAGE_ROOT
+                
+                print(f"[RX] Command: ListFiles (Path: /{path})")
+                
+                files = []
+                try:
+                    if os.path.exists(target_dir) and os.path.isdir(target_dir):
+                        for f in os.listdir(target_dir):
+                            full_path = os.path.join(target_dir, f)
+                            stats = os.stat(full_path)
+                            is_dir = os.path.isdir(full_path)
+                            files.append({
+                                "name": f,
+                                "type": "dir" if is_dir else "file",
+                                "size": stats.st_size if not is_dir else 0,
+                                "modified": datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            })
+                except Exception as e:
+                    print(f"[Error] Listing failed: {e}")
 
+                response = {"Type": "FileList", "Files": files, "CurrentPath": path}
+                send_message(conn, response)
+                print(f"[TX] Sent FileList ({len(files)} items).")
 
-# --- Main Server Logic ---
+            elif msg_type == "FileTransfer":
+                filename = msg.get('Filename')
+                path = msg.get("Path", "")
+                print(f"[RX] Incoming FileTransfer: {filename}")
+                
+                content_b64 = msg["Content"]
+                nonce_b64 = msg["Nonce"]
+                
+                content = base64.b64decode(content_b64)
+                nonce = base64.b64decode(nonce_b64)
+                
+                try:
+                    plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
+                    
+                    target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
+                    if not target_dir.startswith(STORAGE_ROOT): target_dir = STORAGE_ROOT
+                    if not os.path.exists(target_dir): os.makedirs(target_dir)
+                    
+                    save_path = os.path.join(target_dir, filename)
+                    with open(save_path, 'wb') as f:
+                        f.write(plaintext)
+                    
+                    ack = {"Type": "ActionAck", "Status": "Success"}
+                    send_message(conn, ack)
+                    print(f"[TX] File Saved: {save_path}")
+                except Exception as e:
+                    print(f"[Error] Decryption/Save failed: {e}")
+                    ack = {"Type": "ActionAck", "Status": "Error", "Message": str(e)}
+                    send_message(conn, ack)
+
+            elif msg_type == "DownloadFile":
+                filename = msg.get('Filename')
+                path = msg.get("Path", "")
+                print(f"[RX] Download Request: {filename}")
+                
+                target_path = os.path.normpath(os.path.join(STORAGE_ROOT, path, filename))
+                if not target_path.startswith(STORAGE_ROOT):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied"})
+                elif os.path.exists(target_path):
+                    with open(target_path, 'rb') as f:
+                        content = f.read()
+                    
+                    nonce, ciphertext = utils.encrypt_data(server_state.session_key, content)
+                    file_msg = {
+                        "Type": "FileTransfer",
+                        "Filename": filename,
+                        "Content": base64.b64encode(ciphertext).decode('utf-8'),
+                        "Nonce": base64.b64encode(nonce).decode('utf-8')
+                    }
+                    send_message(conn, file_msg)
+                    print(f"[TX] Sent File: {filename}")
+                else:
+                    send_message(conn, {"Type": "Error", "Message": "File not found"})
+
+            elif msg_type == "CreateDir":
+                name = msg.get('Name')
+                path = msg.get("ParentPath", "")
+                print(f"[RX] CreateDir: {name}")
+                target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path, name))
+                if target_dir.startswith(STORAGE_ROOT):
+                    if not os.path.exists(target_dir):
+                        os.makedirs(target_dir)
+                        send_message(conn, {"Type": "ActionAck", "Status": "Success"})
+                    else:
+                        send_message(conn, {"Type": "ActionAck", "Status": "Exists"})
+                else:
+                    send_message(conn, {"Type": "ActionAck", "Status": "Error"})
+
+            elif msg_type == "DeletePath":
+                path_to_del = msg.get('Path')
+                print(f"[RX] DeletePath: {path_to_del}")
+                target_path = os.path.normpath(os.path.join(STORAGE_ROOT, path_to_del))
+                if target_path.startswith(STORAGE_ROOT) and os.path.exists(target_path):
+                     try:
+                        if os.path.isdir(target_path):
+                            import shutil
+                            shutil.rmtree(target_path)
+                        else:
+                            os.remove(target_path)
+                        send_message(conn, {"Type": "ActionAck", "Status": "Success"})
+                     except Exception as e:
+                        send_message(conn, {"Type": "ActionAck", "Status": "Error", "Message": str(e)})
+                else:
+                    send_message(conn, {"Type": "ActionAck", "Status": "Error", "Message": "Invalid Path"})
+
+            elif msg_type == "Disconnect":
+                print("[RX] Disconnect.")
+                break
+            
+            else:
+                print(f"[Server] Unknown Type: {msg_type}")
+
+    except Exception as e:
+        print(f"Session Error: {e}", file=sys.stderr)
+    
+    print("Session ended.")
+
 
 def start_server(cert_filename: str = "server_cert.json"):
-    print("="*70)
-    print(" Q-SFTP SERVER: QUANTUM-SAFE FILE TRANSFER")
-    print("="*70)
+    print_banner()
     print(f"[*] Binding to           : {HOST}:{PORT}")
     print(f"[*] Server Subject       : {SERVER_SUBJECT}")
     current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     print(f"[*] System Time          : {current_time}")
-    print("-" * 70)
-    print(f"[*] Identity Loaded      : {SERVER_SUBJECT}")
-    print("[*] Ready for PQC Handshake...")
     
-    try:
-        server_state = ServerHandshakeState(cert_filename)
-        # print(f"[Init] Server ready with Subject: {server_state.server_cert['Subject']}")
-    except SystemExit:
-        print("\nFATAL: Server setup failed.", file=sys.stderr)
-        return
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((HOST, PORT))
-        s.listen(1)
-        print("Waiting for a client connection...\n")
-        
-        conn, addr = s.accept()
-        with conn:
-            print(f"[New Connection] {addr[0]}:{addr[1]}")
-            print("-" * 70)
-            
-            try:
-                t_start_handshake = time.time()
-                # Step 1: Receive ClientHello
-                client_hello = receive_message(conn)
+    # Retry logic for binding
+    bind_retries = 3
+    for attempt in range(bind_retries):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind((HOST, PORT))
+                s.listen(5)
+                print(f"[*] Waiting for client connections on {HOST}:{PORT}...\n")
                 
-                # Step 2: Verify ClientHello & Send ServerHello
-                if not server_state.verify_client_hello(client_hello):
-                    raise Exception("Client authentication failed.")
-                
-                server_hello_msg = server_state.generate_server_hello()
-                
-                # Print Client Details
-                client_cert = client_hello["client_cert"]
-                print(f"[Client] Subject             : {client_cert.get('Subject')}")
-                print(f"[Client] Issuer              : {client_cert.get('Issuer')}")
-                print(f"[Client] Cipher Suite        : {server_hello_msg['CipherSuite']}")
-                
-                send_message(conn, server_hello_msg)
-                # Calculate size of sent message
-                sent_len = len(json.dumps(server_hello_msg).encode('utf-8')) + 4
-                print(f"[TX] ServerHello Sent ({sent_len} bytes).")
-                
-                print(f"\n[Phase 2] Post-Quantum Key Exchange")
-                print("-" * 70)
-                
-                # Step 3: Receive ClientKeyShare
-                client_key_share = receive_message(conn)
-                
-                # Calculate size of received message
-                recv_len = len(json.dumps(client_key_share).encode('utf-8')) + 4
-                print(f"[RX] ClientKeyShare Received ({recv_len} bytes).")
-                
-                # Step 4: Process KeyShare
-                if not server_state.receive_key_share(client_key_share):
-                     raise Exception("Key exchange failed.")
-
-                # Step 5: Receive ClientFinished
-                client_finished_msg = receive_message(conn)
-                print("[RX] Received ClientFinished.")
-                
-                print("\n--- DEBUG: Transcript Hash Calculation ---")
-                print("--- END DEBUG ---\n")
-                
-                # Step 6: Verify ClientFinished
-                if not server_state.verify_client_finished(client_finished_msg, client_key_share):
-                    raise Exception("Mutual authentication failed.")
-                    
-                print(f"\n[Phase 3] Mutual Authentication")
-                print("-" * 70)
-                    
-                # Step 7: Generate and Send ServerFinished
-                server_finished_msg = server_state.generate_server_finished()
-                send_message(conn, server_finished_msg)
-                print("[TX] ServerFinished Sent (Signed Transcript Hash).")
-                print("[Crypto] Signature Algorithm : CRYSTALS-Dilithium-2")
-            
-                t_end_handshake = time.time()
-                # print(f"\n✅ HANDSHAKE COMPLETE. Session Key K_s established.")
-                
-                print(f"\n[Phase 4] Secure Channel Established")
-                print("-" * 70)
-                
-                sk_fingerprint = hashes.Hash(hashes.SHA256(), backend=default_backend())
-                sk_fingerprint.update(server_state.session_key)
-                
-                print(f"[KeyInfo] Session Key Fingerprint : {sk_fingerprint.finalize().hex()[:16]}...")
-                print(f"[KeyInfo] Session Key Length      : {len(server_state.session_key)*8} bits")
-                print("[Security Guarantees]")
-                print(" - Mutual Authentication      : ✅ (Verified Client Signature)")
-                print(" - Quantum-Resistant Key Exch : ✅ (Kyber-512 Decapsulation)")
-                print(" - Integrity Protected        : ✅ (Dilithium-2)")
-                
-                # --- Command Loop ---
-                print("\n[Phase 5] Secure Command Loop")
-                print("-" * 70)
-                
-                # Setup Storage Root
-                STORAGE_ROOT = os.path.abspath("ServerStorage")
-                if not os.path.exists(STORAGE_ROOT):
-                    os.makedirs(STORAGE_ROOT)
-                    print(f"[Init] Created Storage Root: {STORAGE_ROOT}")
-                else:
-                    print(f"[Init] Using Storage Root: {STORAGE_ROOT}")
-
                 while True:
-                    print("[Server] Waiting for encrypted command...")
                     try:
-                        msg = receive_message(conn)
-                    except (ConnectionAbortedError, ConnectionResetError):
-                        print("[Server] Client disconnected (Connection Closed).")
-                        break
+                        conn, addr = s.accept()
+                        # Handling client in main thread (blocking) for simplicity, 
+                        # but supports sequential reconnections.
+                        server_state = ServerHandshakeState(cert_filename)
+                        handle_client(conn, addr, server_state)
+                    except KeyboardInterrupt:
+                        raise
                     except Exception as e:
-                        print(f"[Server] Error receiving message: {e}")
-                        break
-                        
-                    msg_type = msg.get("Type")
-                    
-                    if msg_type == "ListFiles":
-                        path = msg.get("Path", "")
-                        # Security: Prevent escaping Storage Root
-                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
-                        if not target_dir.startswith(STORAGE_ROOT):
-                            target_dir = STORAGE_ROOT # Fallback to root if malicious path
-                        
-                        print(f"[RX] Command: ListFiles (Path: /{path})")
-                        
-                        files = []
-                        try:
-                            if os.path.exists(target_dir) and os.path.isdir(target_dir):
-                                for f in os.listdir(target_dir):
-                                    full_path = os.path.join(target_dir, f)
-                                    stats = os.stat(full_path)
-                                    is_dir = os.path.isdir(full_path)
-                                    files.append({
-                                        "name": f,
-                                        "type": "dir" if is_dir else "file",
-                                        "size": stats.st_size if not is_dir else 0,
-                                        "modified": datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
-                                    })
-                        except Exception as e:
-                            print(f"[Error] Listing failed: {e}")
-
-                        response = {
-                            "Type": "FileList",
-                            "Files": files,
-                            "Path": path
-                        }
-                        send_message(conn, response)
-                        print(f"[TX] Sent FileList ({len(files)} items).")
-
-                    elif msg_type == "FileTransfer":
-                        # Upload to Server
-                        filename = msg.get('Filename')
-                        path = msg.get("Path", "")
-                        print(f"[RX] Incoming FileTransfer: {filename} (to /{path})")
-                        
-                        # Decrypt
-                        content_b64 = msg["Content"]
-                        nonce_b64 = msg["Nonce"]
-                        
-                        content = base64.b64decode(content_b64)
-                        nonce = base64.b64decode(nonce_b64)
-                        
-                        plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
-                        
-                        # Save file
-                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
-                        if not target_dir.startswith(STORAGE_ROOT):
-                            target_dir = STORAGE_ROOT
-                        if not os.path.exists(target_dir):
-                            os.makedirs(target_dir)
-                            
-                        save_path = os.path.join(target_dir, filename)
-                        with open(save_path, "wb") as f:
-                            f.write(plaintext)
-                        print(f"[IO] File saved to: {save_path}")
-                        
-                        # Send Ack
-                        ack = {
-                            "Type": "TransferAck",
-                            "Status": "Success",
-                            "Filename": filename
-                        }
-                        send_message(conn, ack)
-                        print(f"[TX] Sent TransferAck.")
-                        
-                    elif msg_type == "DownloadFile":
-                        # Download from Server
-                        filename = msg.get('Filename')
-                        path = msg.get("Path", "")
-                        print(f"[RX] Command: DownloadFile {filename} (from /{path})")
-                        
-                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
-                        if not target_dir.startswith(STORAGE_ROOT):
-                            target_dir = STORAGE_ROOT
-                        
-                        file_path = os.path.join(target_dir, filename)
-                        
-                        if os.path.exists(file_path) and os.path.isfile(file_path):
-                            with open(file_path, "rb") as f:
-                                content = f.read()
-                            
-                            # Encrypt
-                            nonce, ciphertext = utils.encrypt_data(server_state.session_key, content)
-                            
-                            # Send FileTransfer message back
-                            file_msg = {
-                                "Type": "FileTransfer",
-                                "Filename": filename,
-                                "Content": base64.b64encode(ciphertext).decode('utf-8'),
-                                "Nonce": base64.b64encode(nonce).decode('utf-8'),
-                                "OriginalType": "Download" 
-                            }
-                            send_message(conn, file_msg)
-                            print(f"[TX] Sent FileTransfer (Download) - {len(content)} bytes")
-                        else:
-                            error_msg = {"Type": "Error", "Message": "File not found"}
-                            send_message(conn, error_msg)
-                            print(f"[TX] Sent Error (File not found)")
-
-                    elif msg_type == "CreateDir":
-                        foldername = msg.get('Foldername')
-                        path = msg.get("Path", "")
-                        print(f"[RX] Command: CreateDir {foldername} (in /{path})")
-                        
-                        target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path, foldername))
-                        if not target_dir.startswith(STORAGE_ROOT):
-                             target_dir = STORAGE_ROOT
-                             
-                        try:
-                            if not os.path.exists(target_dir):
-                                os.makedirs(target_dir)
-                                ack = {"Type": "ActionAck", "Status": "Success"}
-                            else:
-                                ack = {"Type": "ActionAck", "Status": "Exists"}
-                        except Exception as e:
-                            ack = {"Type": "ActionAck", "Status": "Error", "Message": str(e)}
-                            
-                        send_message(conn, ack)
-                        print(f"[TX] Sent ActionAck.")
-
-                    elif msg_type == "DeletePath":
-                        filename = msg.get('Filename')
-                        path = msg.get("Path", "")
-                        print(f"[RX] Command: DeletePath {filename} (from /{path})")
-                        
-                        target_path = os.path.normpath(os.path.join(STORAGE_ROOT, path, filename))
-                        
-                        # Security Check
-                        if not target_path.startswith(STORAGE_ROOT) or target_path == STORAGE_ROOT:
-                            ack = {"Type": "ActionAck", "Status": "Error", "Message": "Permission Denied"}
-                        elif os.path.exists(target_path):
-                            try:
-                                if os.path.isdir(target_path):
-                                    # For safety, only allow deleting empty dirs or handle recursively if needed.
-                                    # Let's use shutil.rmtree for full directory delete as typical in FTP
-                                    import shutil
-                                    shutil.rmtree(target_path)
-                                else:
-                                    os.remove(target_path)
-                                ack = {"Type": "ActionAck", "Status": "Success"}
-                            except Exception as e:
-                                ack = {"Type": "ActionAck", "Status": "Error", "Message": str(e)}
-                        else:
-                            ack = {"Type": "ActionAck", "Status": "Error", "Message": "File not found"}
-                            
-                        send_message(conn, ack)
-                        print(f"[TX] Sent ActionAck (Delete).")
-
-                    elif msg_type == "Disconnect":
-                        print("[RX] Disconnect Request.")
-                        break
-                    
-                    else:
-                        print(f"[Server] Unknown message type: {msg_type}")
-            
-            except Exception as e:
-                print(f"Session Error: {e}", file=sys.stderr)
-            
-            print("Session ended.")
+                         print(f"[Server] Accept Error: {e}")
+            break # Exit retry loop if successful
+        except OSError as e:
+             if e.errno == 10048: # Address in use
+                 print(f"Port {PORT} in use, retrying in 1s...")
+                 time.sleep(1)
+             else:
+                 raise e
+        except KeyboardInterrupt:
+            print("\nServer stopping...")
+            break
 
 if __name__ == '__main__':
     start_server()

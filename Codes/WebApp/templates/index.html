@@ -4,122 +4,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Q-SFTP | Quantum-Safe File Transfer</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap"
-        rel="stylesheet">
+    <title>Q-SFTP File Browser</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 
-<body>
+<body data-theme="dark">
 
-    <!-- Header / Connection Bar -->
-    <header>
-        <div class="logo">
-            <i class="fa-solid fa-atom"></i> Q-SFTP
-        </div>
-
-        <div class="connection-bar">
-            <div class="status-item text-success" style="font-size: 0.9rem; margin-right: 1rem;">
-                <i class="fa-solid fa-link"></i> Connected
+    <!-- Header -->
+    <header class="main-header">
+        <h1 class="header-title">Q-SFTP File Browser</h1>
+        <div class="header-actions">
+            <button class="btn-header">Transfer Manager</button>
+            <span class="welcome-text">Welcome, {{ username }}</span>
+            <button class="btn-logout" onclick="disconnectFromServer()">Logout</button>
+            <div class="theme-toggles">
+                <button class="theme-pill" onclick="setTheme('auto')">Auto</button>
+                <button class="theme-pill" onclick="setTheme('light')">Light</button>
+                <button class="theme-pill active" onclick="setTheme('dark')">Dark</button>
             </div>
-            <button id="btn-theme-toggle" class="btn-theme" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
-                <i class="fa-solid fa-moon"></i>
-            </button>
-            <button id="btn-disconnect" class="btn btn-sm btn-outline"
-                style="border-color: var(--danger); color: var(--danger);" onclick="disconnectFromServer()">
-                <i class="fa-solid fa-power-off"></i> Disconnect
-            </button>
         </div>
     </header>
 
-    <!-- Main Content: Dual Panes -->
-    <main>
-        <!-- Local Pane -->
-        <section class="pane" id="local-pane">
-            <div class="pane-header">
-                <div class="pane-title"><i class="fa-solid fa-laptop"></i> Local Site</div>
-                <div class="breadcrumbs">
-                    <input type="text" id="local-path-input" value="C:/" readonly>
-                    <button onclick="navigateUp('local')"><i class="fa-solid fa-arrow-up"></i></button>
-                </div>
-            </div>
-            <div class="file-list" id="local-file-list">
-                <!-- JS will populate this -->
-                <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
-            </div>
-        </section>
+    <!-- Breadcrumb -->
+    <div class="breadcrumb-bar">
+        <span class="breadcrumb-link" id="current-path-display">Root</span>
+    </div>
 
-        <!-- Action / Spacer -->
-        <div class="pane-divider">
-            <button id="btn-upload" class="action-btn" disabled onclick="uploadSelected()">
-                Upload <i class="fa-solid fa-arrow-right"></i>
-            </button>
-            <br>
-            <button id="btn-download" class="action-btn" disabled>
-                <i class="fa-solid fa-arrow-left"></i> Download
-            </button>
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <!-- Action Cards Grid -->
+        <div class="card-grid">
+            <!-- Upload File Card -->
+            <div class="action-card">
+                <h3 class="card-title">Upload File</h3>
+                <div class="upload-dropzone" id="upload-drop-zone"
+                    onclick="document.getElementById('file-input').click()">
+                    <p>Drop files here</p>
+                    <small>or click to choose. Files will upload<br>with progress and can be canceled.</small>
+                </div>
+                <input type="file" id="file-input" multiple style="display:none;">
+                <button class="btn-primary" onclick="document.getElementById('file-input').click()">Choose File</button>
+            </div>
+
+            <!-- Create Directory Card -->
+            <div class="action-card">
+                <h3 class="card-title">Create Directory</h3>
+                <input type="text" id="new-dir-name" class="form-input" placeholder="New directory name">
+                <button class="btn-primary" onclick="createDirectory()">Create</button>
+            </div>
+
+            <!-- Transfer Speed Settings Card -->
+            <div class="action-card">
+                <h3 class="card-title">Transfer Speed Settings</h3>
+                <select id="speed-limit" class="form-select">
+                    <option value="0">No Limit</option>
+                    <option value="1024">1 MB/s</option>
+                    <option value="5120">5 MB/s</option>
+                    <option value="10240">10 MB/s</option>
+                </select>
+                <button class="btn-primary" onclick="setSpeedLimit()">Set Speed</button>
+                <p class="speed-status">Current limit: <span id="current-speed">No Limit</span></p>
+            </div>
         </div>
 
-        <!-- Remote Pane -->
-        <section class="pane" id="remote-pane">
-            <div class="pane-header">
-                <div class="pane-title">
-                    <i class="fa-solid fa-server"></i> Remote Site
-                    <div class="remote-actions">
-                        <button id="btn-new-folder" class="btn-icon" title="New Folder" disabled
-                            onclick="createRemoteFolder()">
-                            <i class="fa-solid fa-folder-plus"></i>
-                        </button>
-                        <button id="btn-delete" class="btn-icon" title="Delete Selection" disabled
-                            onclick="deleteRemoteSelection()">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="breadcrumbs">
-                    <input type="text" id="remote-path-input" value="/" readonly>
-                    <button id="btn-remote-up" disabled onclick="navigateUp('remote')"><i
-                            class="fa-solid fa-arrow-up"></i></button>
-                    <button id="btn-download-remote" class="btn-icon" title="Download" disabled
-                        onclick="downloadSelected()">
-                        <i class="fa-solid fa-download"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="file-list" id="remote-file-list">
-                <div class="empty-state">
-                    <i class="fa-solid fa-network-wired"></i>
-                    <p>Not Connected</p>
-                </div>
-            </div>
-        </section>
+        <!-- Settings Row -->
+        <div class="settings-row">
+            <h3 class="settings-title">Settings</h3>
+            <label class="setting-item">
+                <span>File Integrity Verification</span>
+                <input type="checkbox" id="integrity-check" checked>
+            </label>
+        </div>
+
+        <!-- Data Table -->
+        <div class="data-table-container">
+            <h3 class="table-title" id="table-title">Contents of: /</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th>Modified</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="file-table-body">
+                    <!-- JS populates this -->
+                    <tr>
+                        <td colspan="5" class="loading-cell"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </main>
 
-    <!-- Transfer Queue -->
-    <section class="transfer-queue">
-        <div class="queue-header">
-            <span><i class="fa-solid fa-list-check"></i> Transfer Queue</span>
-            <span class="badge" id="queue-count">0</span>
+    <!-- Upload Progress (Top Floating) -->
+    <div id="upload-progress-container" class="upload-progress-popup hidden">
+        <div class="progress-info">
+            <span id="upload-filename" class="font-mono">filename.ext</span>
+            <div class="progress-track">
+                <div id="upload-bar" class="progress-fill" style="width: 0%"></div>
+            </div>
         </div>
-        <div class="queue-list" id="queue-list">
-            <!-- Queue items go here -->
-        </div>
-    </section>
+        <button id="btn-cancel-upload" class="btn-cancel">Cancel</button>
+    </div>
 
-    <!-- Status Bar -->
-    <footer>
-        <div class="status-item" id="status-conn">
-            <i class="fa-solid fa-circle-xmark text-danger"></i> Disconnected
+    <!-- Upload Complete Toast (Bottom Right) -->
+    <div id="upload-complete-toast" class="toast-notification hidden">
+        <div class="toast-content">
+            <h4>Upload complete</h4>
+            <p id="toast-filename">filename.ext</p>
         </div>
-        <div class="status-spacer"></div>
-        <div class="status-item security-info">
-            <span class="pqc-badge hidden" id="pqc-kyber"><i class="fa-solid fa-shield-halved"></i> Kyber-512</span>
-            <span class="pqc-badge hidden" id="pqc-dilithium"><i class="fa-solid fa-signature"></i> Dilithium-2</span>
-            <span class="pqc-badge hidden" id="pqc-aes"><i class="fa-solid fa-lock"></i> AES-256-GCM</span>
-        </div>
-    </footer>
+        <button class="toast-close" onclick="closeToast()">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

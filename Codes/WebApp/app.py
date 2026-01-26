@@ -13,9 +13,6 @@ handshake_dir = os.path.join(project_root, 'Handshake')
 # Import Handshake Client Logic
 sys.path.append(handshake_dir)
 
-# Attempt to import client logic. 
-# We might need to refactor handshake_client.py slightly or use it as is if it's modular enough.
-# Looking at the file, 'ClientHandshakeState' and 'utils' are available.
 try:
     import utils
     from handshake_client import ClientHandshakeState, send_message, receive_message, Kyber512
@@ -30,15 +27,16 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# --- Global State (Simple Single-User for Demo) ---
+# --- Global State ---
 CLIENT_STATE = {
     "socket": None,
     "connected": False,
     "handshake_state": None,
-    "current_dir": os.path.expanduser("~"), # Local dir
-    "remote_path": "", # Remote dir relative to Storage Root
+    "current_dir": os.path.expanduser("~"), 
+    "remote_path": "", 
     "transfer_queue": [], 
-    "session_key": None
+    "session_key": None,
+    "username": "Guest"
 }
 
 # --- Utils ---
@@ -62,7 +60,7 @@ def get_file_info(path):
 def index():
     if not CLIENT_STATE["connected"]:
         return render_template('login.html')
-    return render_template('index.html')
+    return render_template('index.html', username=CLIENT_STATE["username"])
 
 @app.route('/login')
 def login_page():
@@ -74,7 +72,6 @@ def logout():
         s = CLIENT_STATE["socket"]
         if s:
             try:
-                # Optional: Send disconnect message to server
                 send_message(s, {"Type": "Disconnect"})
             except: 
                 pass
@@ -87,41 +84,23 @@ def logout():
     CLIENT_STATE["connected"] = False
     CLIENT_STATE["session_key"] = None
     CLIENT_STATE["remote_path"] = ""
+    CLIENT_STATE["username"] = "Guest"
     
     return jsonify({"status": "Disconnected"})
 
-
-
-@app.route('/api/local/files')
-def list_local_files():
-    directory = request.args.get('path', CLIENT_STATE["current_dir"])
-    
-    if not os.path.exists(directory):
-        return jsonify({"error": "Directory not found"}), 404
-
-    try:
-        items = os.listdir(directory)
-        files_data = []
-        for item in items:
-            full_path = os.path.join(directory, item)
-            info = get_file_info(full_path)
-            if info:
-                files_data.append(info)
-        
-        files_data.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
-        
-        CLIENT_STATE["current_dir"] = directory
-        return jsonify({
-            "current_path": directory,
-            "files": files_data
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route('/api/status')
+def status():
+    return jsonify({
+        "connected": CLIENT_STATE["connected"],
+        "remote_path": CLIENT_STATE.get("remote_path", ""),
+        "username": CLIENT_STATE.get("username", "Guest")
+    })
 
 @app.route('/api/connect', methods=['POST'])
 def connect_server():
     data = request.json
     host = data.get('ip', '127.0.0.1')
+    username = data.get('username', 'User')
     try:
         port = int(data.get('port', 8888))
     except (ValueError, TypeError):
@@ -131,8 +110,7 @@ def connect_server():
         return jsonify({"status": "Already connected", "connected": True})
 
     try:
-        # PQC Handshake (Same as before)
-        cert_path = os.path.join(handshake_dir, "client_cert.json")
+        # PQC Handshake
         original_cwd = os.getcwd()
         os.chdir(handshake_dir)
         
@@ -140,7 +118,7 @@ def connect_server():
         client_hello = client_state_logic.generate_client_hello()
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(10) 
+        s.settimeout(600) # Increased timeout for large file uploads
         s.connect((host, port))
         
         send_message(s, client_hello)
@@ -166,87 +144,98 @@ def connect_server():
             client_state_logic.transcript_hash
         )
         
-        os.chdir(original_cwd)
-        
         CLIENT_STATE["socket"] = s
         CLIENT_STATE["connected"] = True
-        CLIENT_STATE["handshake_state"] = client_state_logic
         CLIENT_STATE["session_key"] = session_key
-        CLIENT_STATE["remote_path"] = "" # Reset to root
+        CLIENT_STATE["remote_path"] = ""
+        CLIENT_STATE["username"] = username
         
-        return jsonify({
-            "status": "Handshake Successful",
-            "connected": True,
-            "security": {
-                 "kem": "Kyber-512",
-                 "auth": "Dilithium-2",
-                 "session_key_fingerprint": session_key[:4].hex()
-            }
-        })
+        os.chdir(original_cwd)
+        
+        return jsonify({"status": "Handshake Successful", "connected": True})
 
     except Exception as e:
         os.chdir(original_cwd)
-        if 's' in locals() and s:
-            s.close()
-        logging.exception("Connection failed")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/remote/files')
 def list_remote_files():
     if not CLIENT_STATE["connected"]:
-        return jsonify({"error": "Not connected"}), 400
-        
-    path = request.args.get('path', CLIENT_STATE["remote_path"])
-
-    try:
-        s = CLIENT_STATE["socket"]
-        req = {
-            "Type": "ListFiles",
-            "Path": path
-        }
-        send_message(s, req)
-        
-        response = receive_message(s)
-        
-        if response.get("Type") == "FileList":
-            CLIENT_STATE["remote_path"] = path # Update state on success
-            return jsonify({
-                "files": response.get("Files", []),
-                "current_path": path
-            })
-        else:
-            return jsonify({"error": f"Unexpected response: {response.get('Type')}"}), 500
-
-    except Exception as e:
-        CLIENT_STATE["connected"] = False
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/remote/mkdir', methods=['POST'])
-def create_remote_dir():
-    if not CLIENT_STATE["connected"]:
-        return jsonify({"error": "Not connected"}), 400
-        
-    data = request.json
-    name = data.get('name')
-    if not name: return jsonify({"error": "Name required"}), 400
+         return jsonify({"error": "Not connected"}), 400
+         
+    path_arg = request.args.get('path', '')
+    
+    # Send ListFiles Command
+    req = {
+        "Type": "ListFiles",
+        "Path": path_arg
+    }
     
     try:
         s = CLIENT_STATE["socket"]
-        req = {
-            "Type": "CreateDir",
-            "Foldername": name,
-            "Path": CLIENT_STATE["remote_path"]
-        }
         send_message(s, req)
+        res = receive_message(s)
         
-        ack = receive_message(s)
-        if ack.get("Type") == "ActionAck" and ack.get("Status") == "Success":
-             return jsonify({"status": "Created"})
-        elif ack.get("Status") == "Exists":
-             return jsonify({"error": "Folder already exists"}), 400
+        if res.get("Type") == "FileList":
+            CLIENT_STATE["remote_path"] = res.get("CurrentPath", "")
+            return jsonify({
+                "current_path": res.get("CurrentPath", ""),
+                "files": res.get("Files", [])
+            })
         else:
-             return jsonify({"error": ack.get("Message", "Unknown Error")}), 500
-             
+            return jsonify({"error": res.get("Message", "Failed to list files")}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/remote/mkdir', methods=['POST'])
+def remote_mkdir():
+    if not CLIENT_STATE["connected"]:
+         return jsonify({"error": "Not connected"}), 400
+    
+    data = request.json
+    name = data.get('name')
+    parent = data.get('parent_path', '')
+    
+    req = {
+        "Type": "CreateDir",
+        "Name": name,
+        "ParentPath": parent
+    }
+    
+    try:
+        s = CLIENT_STATE["socket"]
+        send_message(s, req)
+        res = receive_message(s)
+        
+        if res.get("Type") == "ActionAck" and res.get("Status") == "Success":
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": res.get("Message")}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/remote/delete', methods=['POST'])
+def remote_delete():
+    if not CLIENT_STATE["connected"]:
+         return jsonify({"error": "Not connected"}), 400
+    
+    data = request.json
+    path_to_del = data.get('path')
+    
+    req = {
+        "Type": "DeletePath",
+        "Path": path_to_del
+    }
+    
+    try:
+        s = CLIENT_STATE["socket"]
+        send_message(s, req)
+        res = receive_message(s)
+        
+        if res.get("Type") == "ActionAck" and res.get("Status") == "Success":
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": res.get("Message")}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -254,13 +243,12 @@ def create_remote_dir():
 def download_file():
     if not CLIENT_STATE["connected"]:
          return jsonify({"error": "Not connected"}), 400
-    
+         
     data = request.json
     filename = data.get('filename')
     
     try:
         s = CLIENT_STATE["socket"]
-        # Request Download
         req = {
             "Type": "DownloadFile",
             "Filename": filename,
@@ -268,7 +256,6 @@ def download_file():
         }
         send_message(s, req)
         
-        # Wait for FileTransfer
         res = receive_message(s)
         
         if res.get("Type") == "Error":
@@ -284,37 +271,35 @@ def download_file():
             
             plaintext = utils.decrypt_data(CLIENT_STATE["session_key"], nonce, content)
             
-            # Save to Local Current Dir
-            save_path = os.path.join(CLIENT_STATE["current_dir"], filename)
-            with open(save_path, "wb") as f:
-                f.write(plaintext)
+            # Save to temporary download folder or stream back?
+            # Flask send_file can stream bytes
+            import io
+            return flask_send_file(io.BytesIO(plaintext), as_attachment=True, download_name=filename)
             
-            return jsonify({"status": "Downloaded", "path": save_path})
-        else:
-             return jsonify({"error": "Unexpected response"}), 500
-             
     except Exception as e:
          return jsonify({"error": str(e)}), 500
+
+# Helper for download
+from flask import send_file as flask_send_file
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     if not CLIENT_STATE["connected"]:
          return jsonify({"error": "Not connected"}), 400
-         
-    data = request.json
-    local_path = data.get('path')
-    
-    if not local_path or not os.path.exists(local_path):
-        return jsonify({"error": "File not found"}), 404
+
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
         
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
     try:
-        filename = os.path.basename(local_path)
-        with open(local_path, "rb") as f:
-            content = f.read()
+        filename = file.filename
+        content = file.read()
             
         nonce, ciphertext = utils.encrypt_data(CLIENT_STATE["session_key"], content)
         
-        # Send with Path
         file_msg = {
             "Type": "FileTransfer",
             "Filename": filename,
@@ -327,47 +312,13 @@ def upload_file():
         send_message(s, file_msg)
         
         ack = receive_message(s)
-        if ack.get("Type") == "TransferAck":
-            return jsonify({"status": "File Sent", "filename": filename})
+        if ack.get("Status") == "Success":
+            return jsonify({"success": True})
         else:
-            return jsonify({"error": "No Ack received"}), 500
-        
-    except Exception as e:
-        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
+            return jsonify({"error": ack.get("Message", "Upload failed")}), 500
 
-@app.route('/api/remote/delete', methods=['POST'])
-def delete_remote_item():
-    if not CLIENT_STATE["connected"]:
-        return jsonify({"error": "Not connected"}), 400
-        
-    data = request.json
-    filename = data.get('filename')
-    if not filename: return jsonify({"error": "File selection required"}), 400
-    
-    try:
-        s = CLIENT_STATE["socket"]
-        req = {
-            "Type": "DeletePath",
-            "Filename": filename,
-            "Path": CLIENT_STATE["remote_path"]
-        }
-        send_message(s, req)
-        
-        ack = receive_message(s)
-        if ack.get("Type") == "ActionAck" and ack.get("Status") == "Success":
-             return jsonify({"status": "Deleted"})
-        else:
-             return jsonify({"error": ack.get("Message", "Delete failed")}), 500
-             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/status')
-def status():
-    return jsonify({
-        "connected": CLIENT_STATE["connected"],
-        "server": f"{CLIENT_STATE['socket'].getpeername()[0]}" if CLIENT_STATE["connected"] else None
-    })
-
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
