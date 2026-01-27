@@ -27,6 +27,10 @@ KEYS_DIR = CA_DIR / "keys"
 
 # --- I/O Helpers ---
 
+def generate_serial() -> str:
+    """Generates a random serial number for a certificate."""
+    return str(int.from_bytes(os.urandom(16), 'big'))
+
 def load_json(filename: str, directory: Path = CERTS_DIR) -> dict:
     """Loads a JSON file from the specified directory (defaults to CA/certs)."""
     path = directory / filename

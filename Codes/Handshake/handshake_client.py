@@ -72,7 +72,15 @@ class ClientHandshakeState:
         self.key_subject = key_subject
         
         # Load Client Certificate and Dilithium Private Key
-        self.cert = utils.load_cert(cert_filename)
+        # FIX: Load cert directly from the file in the current directory (modified by switch_user.py)
+        # instead of utils.load_cert() which forces CA/certs directory.
+        try:
+            with open(cert_filename, 'r') as f:
+                self.cert = json.load(f)
+        except Exception as e:
+            print(f"Error loading client cert '{cert_filename}': {e}", file=sys.stderr)
+            raise
+
         self.private_key = utils.load_dilithium_private_key(key_subject)
 
         # State

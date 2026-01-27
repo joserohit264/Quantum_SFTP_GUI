@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import os
 import base64
+import secrets
 
 # Add the parent directory to the path to import utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__))))
@@ -150,7 +151,7 @@ class ServerHandshakeState:
         self.kyber_sk = sk
         kyber_pk_b64 = base64.b64encode(pk).decode('utf-8')
 
-        self.server_nonce = uuid.uuid4().hex
+        self.server_nonce = secrets.token_hex(16)
         self.server_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         cleaned_server_cert = utils.clean_cert(self.server_cert)
@@ -248,14 +249,21 @@ class ServerHandshakeState:
 
 # --- Main Handler ---
 
+
+
+# --- RBAC Helper ---
+from auth_manager import auth_db
+
+from file_validator import FileValidator
+
 def handle_client(conn, addr, server_state):
     print(f"[New Connection] {addr[0]}:{addr[1]}")
     print("-" * 70)
     
-    # Setup Storage Root
-    STORAGE_ROOT = os.path.abspath("ServerStorage")
-    if not os.path.exists(STORAGE_ROOT):
-        os.makedirs(STORAGE_ROOT)
+    # Setup Storage Root (BASE)
+    GLOBAL_STORAGE_ROOT = os.path.abspath("ServerStorage")
+    if not os.path.exists(GLOBAL_STORAGE_ROOT):
+        os.makedirs(GLOBAL_STORAGE_ROOT)
     
     try:
         t_start_handshake = time.time()
@@ -265,6 +273,22 @@ def handle_client(conn, addr, server_state):
         # Step 2: Verify ClientHello & Send ServerHello
         if not server_state.verify_client_hello(client_hello):
             raise Exception("Client authentication failed.")
+        
+        # User Lookup & Context
+        cert_subject = client_hello["client_cert"].get("Subject")
+        # Ensure 'O=QuantumSFTP' or other comma separated fields match how we stored them. 
+        # Ideally, we should parse the DN, but for now assuming identical string match or substring logic.
+        user = auth_db.get_user_by_subject(cert_subject)
+        if not user:
+            print(f"[Auth] No user found for subject: {cert_subject}")
+            raise Exception("Unauthorized: Certificate not registered to any user.")
+        
+        print(f"[Auth] User Authenticated: {user.username} (Role: {user.role})")
+
+        # Directory Isolation
+        USER_STORAGE_ROOT = os.path.join(GLOBAL_STORAGE_ROOT, user.username)
+        if not os.path.exists(USER_STORAGE_ROOT):
+            os.makedirs(USER_STORAGE_ROOT)
         
         server_hello_msg = server_state.generate_server_hello()
         
@@ -326,9 +350,13 @@ def handle_client(conn, addr, server_state):
             msg_type = msg.get("Type")
             
             if msg_type == "ListFiles":
+                if not auth_db.check_permission(user.username, 'READ'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: READ access required."})
+                    continue
+
                 path = msg.get("Path", "")
-                target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
-                if not target_dir.startswith(STORAGE_ROOT): target_dir = STORAGE_ROOT
+                target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
+                if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
                 
                 print(f"[RX] Command: ListFiles (Path: /{path})")
                 
@@ -353,6 +381,10 @@ def handle_client(conn, addr, server_state):
                 print(f"[TX] Sent FileList ({len(files)} items).")
 
             elif msg_type == "FileTransfer":
+                if not auth_db.check_permission(user.username, 'WRITE'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: WRITE access required."})
+                    continue
+
                 filename = msg.get('Filename')
                 path = msg.get("Path", "")
                 print(f"[RX] Incoming FileTransfer: {filename}")
@@ -366,8 +398,17 @@ def handle_client(conn, addr, server_state):
                 try:
                     plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
                     
-                    target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path))
-                    if not target_dir.startswith(STORAGE_ROOT): target_dir = STORAGE_ROOT
+                    # --- SECURITY CHECK: Malicious File Protection ---
+                    is_valid, reason = FileValidator.validate(filename, plaintext)
+                    if not is_valid:
+                        print(f"[Security] MALICIOUS FILE BLOCKED: {filename} Reason: {reason}")
+                        ack = {"Type": "ActionAck", "Status": "Error", "Message": f"Security Violation: {reason}"}
+                        send_message(conn, ack)
+                        continue
+                    # -------------------------------------------------
+                    
+                    target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
+                    if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
                     if not os.path.exists(target_dir): os.makedirs(target_dir)
                     
                     save_path = os.path.join(target_dir, filename)
@@ -383,12 +424,16 @@ def handle_client(conn, addr, server_state):
                     send_message(conn, ack)
 
             elif msg_type == "DownloadFile":
+                if not auth_db.check_permission(user.username, 'READ'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: READ access required."})
+                    continue
+
                 filename = msg.get('Filename')
                 path = msg.get("Path", "")
                 print(f"[RX] Download Request: {filename}")
                 
-                target_path = os.path.normpath(os.path.join(STORAGE_ROOT, path, filename))
-                if not target_path.startswith(STORAGE_ROOT):
+                target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, filename))
+                if not target_path.startswith(USER_STORAGE_ROOT):
                     send_message(conn, {"Type": "Error", "Message": "Permission Denied"})
                 elif os.path.exists(target_path):
                     with open(target_path, 'rb') as f:
@@ -407,11 +452,15 @@ def handle_client(conn, addr, server_state):
                     send_message(conn, {"Type": "Error", "Message": "File not found"})
 
             elif msg_type == "CreateDir":
+                if not auth_db.check_permission(user.username, 'WRITE'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: WRITE access required."})
+                    continue
+
                 name = msg.get('Name')
                 path = msg.get("ParentPath", "")
                 print(f"[RX] CreateDir: {name}")
-                target_dir = os.path.normpath(os.path.join(STORAGE_ROOT, path, name))
-                if target_dir.startswith(STORAGE_ROOT):
+                target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, name))
+                if target_dir.startswith(USER_STORAGE_ROOT):
                     if not os.path.exists(target_dir):
                         os.makedirs(target_dir)
                         send_message(conn, {"Type": "ActionAck", "Status": "Success"})
@@ -421,10 +470,14 @@ def handle_client(conn, addr, server_state):
                     send_message(conn, {"Type": "ActionAck", "Status": "Error"})
 
             elif msg_type == "DeletePath":
+                if not auth_db.check_permission(user.username, 'DELETE'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: DELETE access required."})
+                    continue
+
                 path_to_del = msg.get('Path')
                 print(f"[RX] DeletePath: {path_to_del}")
-                target_path = os.path.normpath(os.path.join(STORAGE_ROOT, path_to_del))
-                if target_path.startswith(STORAGE_ROOT) and os.path.exists(target_path):
+                target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path_to_del))
+                if target_path.startswith(USER_STORAGE_ROOT) and os.path.exists(target_path):
                      try:
                         if os.path.isdir(target_path):
                             import shutil
@@ -442,6 +495,7 @@ def handle_client(conn, addr, server_state):
                 break
             
             else:
+                print(f"[Server] Unknown Type: {msg_type}")
                 print(f"[Server] Unknown Type: {msg_type}")
 
     except Exception as e:

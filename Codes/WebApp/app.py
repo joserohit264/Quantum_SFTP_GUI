@@ -114,7 +114,24 @@ def connect_server():
         original_cwd = os.getcwd()
         os.chdir(handshake_dir)
         
-        client_state_logic = ClientHandshakeState("client_cert.json", "Client")
+        # Dynamically determine the subject from the certificate file name or content attempt
+        # Ideally, ClientHandshakeState should extract it from the loaded cert.
+        # But looking at ClientHandshakeState init, it takes (cert_file, subject).
+        # Let's inspect the cert file first to get the Subject.
+        with open("client_cert.json", "r") as f:
+            cert_data = json.load(f)
+            # Subject format: "CN=Client,O=QuantumSFTP" OR just "Client"
+            full_subject = cert_data.get("Subject", "Client")
+            
+            if "=" in full_subject:
+                 # Assume standard DN format: CN=Name,...
+                 cn_part = full_subject.split(",")[0]
+                 current_subject_cn = cn_part.split("=")[1]
+            else:
+                 # Assume simple format: Name
+                 current_subject_cn = full_subject
+
+        client_state_logic = ClientHandshakeState("client_cert.json", current_subject_cn)
         client_hello = client_state_logic.generate_client_hello()
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

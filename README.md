@@ -59,9 +59,35 @@ Open your browser and navigate to: `http://127.0.0.1:5000`
 *   `Codes/CA/`: Certificate Authority tools.
 *   `ServerStorage/`: Designated root directory for secure server file storage.
 
-## 7. CLI Usage (Optional)
-You can still use the command line for headless operations:
+
+## 8. New Security Features
+*   **Multi-User Access Control**:
+    *   **Role-Based Access Control (RBAC)**: Supports roles like `Administrator` (Full Access), `Standard` (Read/Write), and `Guest` (Read-Only).
+    *   **Directory Isolation**: Each user has a private storage directory (`ServerStorage/<username>`).
+*   **Malicious File Protection**:
+    *   **Pre-Storage Validation**: Uploads are scanned for dangerous extensions and magic number mismatches before being saved.
+*   **Linkability Mitigation**:
+    *   **Secure Session IDs**: Uses cryptographically secure random tokens.
+    *   **Metadata Privacy**: Minimal info exposed in file listings.
+
+## 9. User Management & Demo
+The system includes tools to manage users and demonstrate RBAC.
+
+### Create a New User
+Use `create_user.py` to generate credentials (keys/certs) and register a user.
 ```bash
-# Send a file
-python Codes/Handshake/handshake_client.py "my_secret.txt"
+# Usage: python create_user.py <username> <role> <Certificate_Name>
+python3 create_user.py guest_user Guest GuestClient
 ```
+*   **Roles**: `Administrator`, `Standard`, `Guest`.
+
+### Switch Active User (Client)
+To simulate inserting a different user's "Smart Card", use `switch_user.py`.
+```bash
+# Switch to Guest
+python3 switch_user.py GuestClient
+
+# Switch back to Standard User
+python3 switch_user.py Client
+```
+*   **Note**: You must restart the application (`start_q_sftp.sh`) after switching users for changes to take effect.
