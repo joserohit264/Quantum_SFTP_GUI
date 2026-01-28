@@ -2,18 +2,22 @@ import sys
 import os
 import json
 import base64
+import argparse
 from datetime import datetime, timezone
 
-# Add path for utils
+# Add path for utils and user_manager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'Codes', 'Handshake')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'Codes', 'WebApp')))
+
 import utils
 from auth_manager import auth_db
+from user_manager import user_manager
 from dilithium_py.dilithium import Dilithium2
 
 KEYS_DIR = os.path.join('Codes', 'CA', 'keys')
 CERTS_DIR = os.path.join('Codes', 'Handshake', 'certs')
 
-def create_user(username, role, cn_name):
+def create_user(username, role, cn_name, password):
     print(f"[*] Creating user '{username}' with role '{role}'...")
     
     # 1. Generate Dilithium Keys for the User
@@ -57,28 +61,35 @@ def create_user(username, role, cn_name):
         
     print(f"    [Cert] Certificate signed and saved to {cert_filename}")
     
-    # 4. Register in DB
-    # We strip CN=... for the subject match in auth_manager if we implemented strict checking,
-    # but based on my earlier code in handshake_server.py: 
-    # cert_subject = client_hello["client_cert"].get("Subject")
-    # user = auth_db.get_user_by_subject(cert_subject)
-    
-    # So we must register the FULL subject "CN=...,O=..."
-    
+    # 4. Register in Server DB (for Handshake Server verification)
     success, msg = auth_db.add_user(username, role, cert_subject=subject)
     if success:
-        print(f"    [DB] User registered successfully: {msg}")
+        print(f"    [ServerDB] User registered successfully: {msg}")
     else:
-        print(f"    [DB] Registration warning: {msg}")
+        print(f"    [ServerDB] Registration warning: {msg}")
+
+    # 5. Register in Client User Manager (for Web Login)
+    if password:
+        # Map the login to the Certificate Common Name (or Subject)
+        # user_manager expects the certificate 'key' name used by utils to load keys, which is the "CN" part usually if strictly following utils.load_dilithium_private_key
+        # utils.load_dilithium_private_key(subject) -> loads "{subject}_private.bin"
+        # We saved keys as "{cn_name}_private.bin". So we must pass `cn_name` as the certificate identifier.
+        
+        success, msg = user_manager.add_user(username, password, cn_name, role)
+        if success:
+             print(f"    [ClientDB] Web login created for user '{username}'.")
+        else:
+             print(f"    [ClientDB] Failed to create web login: {msg}")
+    else:
+        print("    [ClientDB] Skipped web login creation (no password provided).")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python create_user.py <username> <role> [common_name]")
-        print("Roles: Administrator, Standard, Guest")
-        sys.exit(1)
-        
-    u = sys.argv[1]
-    r = sys.argv[2]
-    cn = sys.argv[3] if len(sys.argv) > 3 else u.capitalize()
+    parser = argparse.ArgumentParser(description="Create a Q-SFTP User")
+    parser.add_argument("username", help="Username for login")
+    parser.add_argument("role", help="Role (Administrator, Standard, Guest)")
+    parser.add_argument("cn_name", help="Common Name for Certificate (e.g., GuestClient)")
+    parser.add_argument("--password", help="Password for Web Login", required=False)
     
-    create_user(u, r, cn)
+    args = parser.parse_args()
+    
+    create_user(args.username, args.role, args.cn_name, args.password)

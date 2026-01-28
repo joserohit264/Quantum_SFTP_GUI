@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Q-SFTP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f5f7fa;
+            --bg-secondary: #fff;
+            --text-primary: #333;
+            --text-secondary: #6b7280;
+            --text-tertiary: #1f2937;
+            --border-color: #e5e7eb;
+            --border-color-2: #f9fafb;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #111827;
+            --bg-secondary: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-tertiary: #e5e7eb;
+            --border-color: #374151;
+            --border-color-2: #2d3748;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .navbar {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .navbar h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-tertiary);
+        }
+
+        .theme-toggle {
+            background-color: var(--border-color);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--border-color-2);
+        }
+
+        .navbar a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-tertiary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background-color: var(--bg-primary);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #3b82f6;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input,
+        .form-select {
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            background-color: var(--border-color-2);
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 1rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .role-administrator {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .role-standard {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .role-guest {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .alert-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-left">
+            <h1>🔐 Admin Panel</h1>
+            <button class="theme-toggle" onclick="toggleTheme()">🌙 Dark Theme</button>
+        </div>
+        <a href="/">← Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+
+        <!-- User Statistics Dashboard -->
+        <div class="card">
+            <div class="card-title">User Statistics Dashboard</div>
+            <div class="form-group" style="max-width: 300px; margin-bottom: 1rem;">
+                <label for="stats-user">Select User</label>
+                <select id="stats-user" class="form-select" onchange="loadUserStats()">
+                    <option value="">Select a user...</option>
+                </select>
+            </div>
+            <div id="stats-container" class="stats-grid" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-logins">-</div>
+                    <div class="stat-label">Total Logins</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-uploads">-</div>
+                    <div class="stat-label">Files Uploaded</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-downloads">-</div>
+                    <div class="stat-label">Files Downloaded</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-deleted">-</div>
+                    <div class="stat-label">Files Deleted</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-storage">-</div>
+                    <div class="stat-label">Storage Used</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-lastlogin">-</div>
+                    <div class="stat-label">Last Login</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create User Card -->
+        <div class="card">
+            <div class="card-title">Create New User</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" class="form-input" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-input" placeholder="Enter password">
+                </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" class="form-select">
+                        <option value="Guest">Guest (Read Only)</option>
+                        <option value="Standard" selected>Standard (Read/Write)</option>
+                        <option value="Administrator">Administrator (Full Access)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="createUser()">Create User</button>
+            </div>
+        </div>
+
+        <!-- Users Table Card -->
+        <div class="card">
+            <div class="card-title">Existing Users</div>
+            <div class="table-container">
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Certificate</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody">
+                        {% if users %}
+                        {% for user in users %}
+                        <tr data-username="{{ user.username }}">
+                            <td>{{ user.username }}</td>
+                            <td>
+                                <span class="role-badge role-{{ user.role.lower() }}">{{ user.role }}</span>
+                            </td>
+                            <td>{{ user.certificate }}</td>
+                            <td>{{ user.created_at[:10] if user.created_at else 'N/A' }}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-secondary"
+                                        onclick="changeRole('{{ user.username }}', '{{ user.role }}')">Change
+                                        Role</button>
+                                    <button class="btn btn-secondary"
+                                        onclick="resetPassword('{{ user.username }}')">Reset Password</button>
+                                    <button class="btn btn-danger"
+                                        onclick="deleteUser('{{ user.username }}')">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="empty-state">No users found. Create your first user above.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Activity Logs Card -->
+        <div class="card">
+            <div class="card-title">Activity Logs</div>
+
+            <!-- Filters -->
+            <div class="form-grid" style="margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label for="user-filter">Filter by User</label>
+                    <select id="user-filter" class="form-select">
+                        <option value="">All Users</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="action-filter">Filter by Action</label>
+                    <select id="action-filter" class="form-select">
+                        <option value="">All Actions</option>
+                        <option value="login">Login</option>
+                        <option value="logout">Logout</option>
+                        <option value="upload">Upload</option>
+                        <option value="download">Download</option>
+                        <option value="delete">Delete</option>
+                        <option value="create_dir">Create Directory</option>
+                        <option value="user_create">User Created</option>
+                        <option value="user_delete">User Deleted</option>
+                        <option value="role_change">Role Change</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="log-limit">Show Entries</label>
+                    <select id="log-limit" class="form-select">
+                        <option value="50">Last 50</option>
+                        <option value="100" selected>Last 100</option>
+                        <option value="200">Last 200</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="loadLogs()">Apply Filters</button>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button class="btn btn-success" onclick="exportLogs('json')">📥 Export as JSON</button>
+                <button class="btn btn-success" onclick="exportLogs('csv')">📥 Export as CSV</button>
+            </div>
+
+            <!-- Logs Table -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                            <th>Status</th>
+                            <th>IP Address</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody">
+                        <tr>
+                            <td colspan="6" class="empty-state">Loading logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+            setTimeout(() => { alert.style.display = 'none'; }, 5000);
+        }
+
+        async function createUser() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const role = document.getElementById('role').value;
+
+            if (!username || !password) {
+                showAlert('Please enter both username and password', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('/admin/create_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showAlert(`User ${username} created successfully!`, 'success');
+                    document.getElementById('username').value = '';
+                    document.getElementById('password').value = '';
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showAlert(data.message, 'error');
+                }
+            } catch (e) {
+                showAlert('Failed to create user: ' + e.message, 'error');
+            }
+        }
+
+        async function deleteUser(username) {
+            if (!confirm(`Are you sure you want to delete user "${username}"?`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/admin/delete_user/${username}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showAlert(`User ${username} deleted successfully!`, 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showAlert(data.message, 'error');
+                }
+            } catch (e) {
+                showAlert('Failed to delete user: ' + e.message, 'error');
+            }
+        }
+
+        async function changeRole(username, currentRole) {
+            const roles = ['Guest', 'Standard', 'Administrator'];
+            const newRole = prompt(`Change role for ${username}\nCurrent: ${currentRole}\n\nEnter new role (Guest/Standard/Administrator):`);
+
+            if (!newRole || !roles.includes(newRole)) {
+                showAlert('Invalid role selected', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/admin/update_role/${username}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showAlert(`Role updated for ${username}!`, 'success');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    showAlert(data.message, 'error');
+                }
+            } catch (e) {
+                showAlert('Failed to update role: ' + e.message, 'error');
+            }
+        }
+
+        async function resetPassword(username) {
+            const newPassword = prompt(`Reset password for ${username}\n\nEnter new password (minimum 6 characters):`);
+
+            if (!newPassword) {
+                return; // User cancelled
+            }
+
+            if (newPassword.length < 6) {
+                showAlert('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/admin/reset_password/${username}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: newPassword })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showAlert(`Password reset successfully for ${username}!`, 'success');
+                } else {
+                    showAlert(data.message, 'error');
+                }
+            } catch (e) {
+                showAlert('Failed to reset password: ' + e.message, 'error');
+            }
+        }
+
+        // Activity Logs Functions
+        async function loadLogs() {
+            const userFilter = document.getElementById('user-filter').value;
+            const actionFilter = document.getElementById('action-filter').value;
+            const limit = document.getElementById('log-limit').value;
+
+            try {
+                let url = `/api/admin/logs?limit=${limit}`;
+                if (userFilter) url += `&username=${userFilter}`;
+                if (actionFilter) url += `&action=${actionFilter}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.success) {
+                    const tbody = document.getElementById('logs-tbody');
+                    tbody.innerHTML = '';
+
+                    if (data.logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No logs found.</td></tr>';
+                        return;
+                    }
+
+                    data.logs.forEach(log => {
+                        const row = document.createElement('tr');
+
+                        const statusClass = log.status === 'success' ? 'color: #10b981;' : 'color: #ef4444;';
+
+                        row.innerHTML = `
+                            <td>${new Date(log.timestamp).toLocaleString()}</td>
+                            <td><strong>${log.username}</strong></td>
+                            <td><span style="text-transform: capitalize;">${log.action.replace('_', ' ')}</span></td>
+                            <td>${log.target || '-'}</td>
+                            <td style="${statusClass}"><strong>${log.status.toUpperCase()}</strong></td>
+                            <td><code>${log.ip_address || '-'}</code></td>
+                        `;
+
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    showAlert('Failed to load logs', 'error');
+                }
+            } catch (e) {
+                showAlert('Error loading logs: ' + e.message, 'error');
+            }
+        }
+
+        function populateUserFilter() {
+            const userFilter = document.getElementById('user-filter');
+            const userRows = document.querySelectorAll('#users-tbody tr[data-username]');
+
+            userRows.forEach(row => {
+                const username = row.dataset.username;
+                if (username) {
+                    const option = document.createElement('option');
+                    option.value = username;
+                    option.textContent = username;
+                    userFilter.appendChild(option);
+                }
+            });
+        }
+
+        // Load logs on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            populateUserFilter();
+            populateStatsUser();
+            loadLogs();
+            // Load theme from localStorage
+            const savedTheme = localStorage.getItem('adminTheme') || 'light';
+            if (savedTheme === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                document.querySelector('.theme-toggle').textContent = '☀️ Light Theme';
+            }
+        });
+
+        // Theme Toggle
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            document.body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('adminTheme', newTheme);
+
+            const btn = document.querySelector('.theme-toggle');
+            btn.textContent = newTheme === 'dark' ? '☀️ Light Theme' : '🌙 Dark Theme';
+        }
+
+        // User Statistics Functions
+        function populateStatsUser() {
+            const statsUser = document.getElementById('stats-user');
+            const userRows = document.querySelectorAll('#users-tbody tr[data-username]');
+
+            userRows.forEach(row => {
+                const username = row.dataset.username;
+                if (username) {
+                    const option = document.createElement('option');
+                    option.value = username;
+                    option.textContent = username;
+                    statsUser.appendChild(option);
+                }
+            });
+        }
+
+        async function loadUserStats() {
+            const username = document.getElementById('stats-user').value;
+            const container = document.getElementById('stats-container');
+
+            if (!username) {
+                container.style.display = 'none';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/admin/user_stats/${username}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    const stats = data.stats;
+
+                    document.getElementById('stat-logins').textContent = stats.total_logins || 0;
+                    document.getElementById('stat-uploads').textContent = stats.files_uploaded || 0;
+                    document.getElementById('stat-downloads').textContent = stats.files_downloaded || 0;
+                    document.getElementById('stat-deleted').textContent = stats.files_deleted || 0;
+
+                    // Format storage size
+                    const bytes = stats.storage_used_bytes || 0;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    if (bytes === 0) {
+                        document.getElementById('stat-storage').textContent = '0 Bytes';
+                    } else {
+                        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                        document.getElementById('stat-storage').textContent =
+                            Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+                    }
+
+                    // Format last login
+                    if (stats.last_login) {
+                        const date = new Date(stats.last_login);
+                        document.getElementById('stat-lastlogin').textContent = date.toLocaleString();
+                    } else {
+                        document.getElementById('stat-lastlogin').textContent = 'Never';
+                    }
+
+                    container.style.display = 'grid';
+                } else {
+                    showAlert('Failed to load user statistics', 'error');
+                }
+            } catch (e) {
+                showAlert('Error loading statistics: ' + e.message, 'error');
+            }
+        }
+
+        // Export Logs Functions
+        async function exportLogs(format) {
+            const userFilter = document.getElementById('user-filter').value;
+            const actionFilter = document.getElementById('action-filter').value;
+            const limit = document.getElementById('log-limit').value;
+
+            try {
+                let url = `/api/admin/logs?limit=${limit}`;
+                if (userFilter) url += `&username=${userFilter}`;
+                if (actionFilter) url += `&action=${actionFilter}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.success) {
+                    if (format === 'json') {
+                        downloadJSON(data.logs);
+                    } else if (format === 'csv') {
+                        downloadCSV(data.logs);
+                    }
+                } else {
+                    showAlert('Failed to fetch logs for export', 'error');
+                }
+            } catch (e) {
+                showAlert('Error exporting logs: ' + e.message, 'error');
+            }
+        }
+
+        function downloadJSON(logs) {
+            const dataStr = JSON.stringify(logs, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showAlert('Logs exported as JSON!', 'success');
+        }
+
+        function downloadCSV(logs) {
+            if (logs.length === 0) {
+                showAlert('No logs to export', 'error');
+                return;
+            }
+
+            // CSV Headers
+            const headers = ['ID', 'Timestamp', 'Username', 'Action', 'Target', 'Status', 'IP Address', 'File Size'];
+            const csvRows = [headers.join(',')];
+
+            // CSV Data
+            logs.forEach(log => {
+                const row = [
+                    log.id,
+                    `"${log.timestamp}"`,
+                    `"${log.username}"`,
+                    `"${log.action}"`,
+                    `"${log.target || ''}"`,
+                    `"${log.status}"`,
+                    `"${log.ip_address || ''}"`,
+                    log.file_size || ''
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            const csvString = csvRows.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showAlert('Logs exported as CSV!', 'success');
+        }
+    </script>
+</body>
+
+</html>

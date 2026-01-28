@@ -16,6 +16,9 @@
     <header class="main-header">
         <h1 class="header-title">Q-SFTP File Browser</h1>
         <div class="header-actions">
+            {% if role == 'Administrator' %}
+            <a href="/admin" class="btn-header" style="text-decoration: none; color: inherit;">🔐 Admin Panel</a>
+            {% endif %}
             <button class="btn-header">Transfer Manager</button>
             <span class="welcome-text">Welcome, {{ username }}</span>
             <button class="btn-logout" onclick="disconnectFromServer()">Logout</button>

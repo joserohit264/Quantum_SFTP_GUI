@@ -1,0 +1,33 @@
+{
+    "metadata_scrubbing": {
+        "enabled": true,
+        "file_types": [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "pdf",
+            "docx"
+        ],
+        "log_scrubbing": true,
+        "fail_on_error": false
+    },
+    "ip_anonymization": {
+        "enabled": true,
+        "salt_rotation": "daily",
+        "hash_length": 16
+    },
+    "anonymized_logging": {
+        "enabled": false,
+        "timestamp_precision": "hour",
+        "session_hash_length": 8
+    },
+    "session_rotation": {
+        "enabled": false,
+        "rotate_on": [
+            "upload",
+            "delete",
+            "password_change"
+        ]
+    }
+}

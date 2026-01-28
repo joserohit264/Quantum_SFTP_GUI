@@ -3,7 +3,7 @@ import sys
 import json
 import threading
 import logging
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request, send_from_directory, session
 
 # Configure paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -12,12 +12,16 @@ handshake_dir = os.path.join(project_root, 'Handshake')
 
 # Import Handshake Client Logic
 sys.path.append(handshake_dir)
+sys.path.append(current_dir) # Add WebApp dir for user_manager
 
 try:
     import utils
     from handshake_client import ClientHandshakeState, send_message, receive_message, Kyber512
+    from user_manager import user_manager
+    from activity_logger import activity_logger
+    from privacy_manager import privacy_manager
 except ImportError as e:
-    print(f"Error importing Handshake modules: {e}")
+    print(f"Error importing modules: {e}")
     sys.exit(1)
 
 import socket
@@ -25,7 +29,12 @@ import base64
 import time
 from datetime import datetime
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
+app.secret_key = 'quantum_sftp_secret_key' # Replace with a real secret in production
 
 # --- Global State ---
 CLIENT_STATE = {
@@ -58,13 +67,42 @@ def get_file_info(path):
 
 @app.route('/')
 def index():
-    if not CLIENT_STATE["connected"]:
+    if not session.get('logged_in'):
         return render_template('login.html')
-    return render_template('index.html', username=CLIENT_STATE["username"])
+    return render_template('index.html', username=session.get('username', 'Guest'), role=session.get('role', 'Geust'))
 
 @app.route('/login')
 def login_page():
+    if session.get('logged_in'):
+        return render_template('index.html', username=session.get('username'), role=session.get('role'))
     return render_template('login.html')
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    
+    valid, result = user_manager.validate_user(username, password)
+    
+    if valid:
+        user = result
+        session['logged_in'] = True
+        session['username'] = user['username'] if 'username' in user else username
+        session['role'] = user['role']
+        session['certificate_cn'] = user['certificate']
+        
+        # Update Global State for UI sync
+        CLIENT_STATE["username"] = username
+        
+        # Log successful login
+        activity_logger.log_login(username, success=True, ip_address=request.remote_addr)
+        
+        return jsonify({"success": True, "redirect": "/"})
+    else:
+        # Log failed login
+        activity_logger.log_login(username, success=False, ip_address=request.remote_addr)
+        return jsonify({"success": False, "message": result}), 401
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -79,6 +117,10 @@ def logout():
     except:
         pass
     
+    # Log logout before clearing session
+    if session.get('username'):
+        activity_logger.log_logout(session['username'], ip_address=request.remote_addr)
+    
     # Reset State
     CLIENT_STATE["socket"] = None
     CLIENT_STATE["connected"] = False
@@ -86,21 +128,25 @@ def logout():
     CLIENT_STATE["remote_path"] = ""
     CLIENT_STATE["username"] = "Guest"
     
-    return jsonify({"status": "Disconnected"})
+    session.clear()
+    
+    return jsonify({"status": "Disconnected", "redirect": "/login"})
 
 @app.route('/api/status')
 def status():
     return jsonify({
         "connected": CLIENT_STATE["connected"],
         "remote_path": CLIENT_STATE.get("remote_path", ""),
-        "username": CLIENT_STATE.get("username", "Guest")
+        "username": session.get("username", "Guest")
     })
 
 @app.route('/api/connect', methods=['POST'])
 def connect_server():
+    if not session.get('logged_in'):
+        return jsonify({"error": "User not logged in"}), 401
+
     data = request.json
     host = data.get('ip', '127.0.0.1')
-    username = data.get('username', 'User')
     try:
         port = int(data.get('port', 8888))
     except (ValueError, TypeError):
@@ -114,28 +160,51 @@ def connect_server():
         original_cwd = os.getcwd()
         os.chdir(handshake_dir)
         
-        # Dynamically determine the subject from the certificate file name or content attempt
-        # Ideally, ClientHandshakeState should extract it from the loaded cert.
-        # But looking at ClientHandshakeState init, it takes (cert_file, subject).
-        # Let's inspect the cert file first to get the Subject.
-        with open("client_cert.json", "r") as f:
-            cert_data = json.load(f)
-            # Subject format: "CN=Client,O=QuantumSFTP" OR just "Client"
-            full_subject = cert_data.get("Subject", "Client")
+        # Determine Certificate based on logged-in user
+        cn_name = session.get('certificate_cn')
+        if not cn_name:
+            # Fallback for legacy/dev support if no cert mapped
+            cn_name = "GuestClient" 
             
-            if "=" in full_subject:
-                 # Assume standard DN format: CN=Name,...
-                 cn_part = full_subject.split(",")[0]
-                 current_subject_cn = cn_part.split("=")[1]
-            else:
-                 # Assume simple format: Name
-                 current_subject_cn = full_subject
+        cert_filename = f"{cn_name}_cert.json"
+        
+        # Check if cert exists in certs dir
+        certs_dir = os.path.join("certs") 
+        full_cert_path = os.path.join(certs_dir, cert_filename)
+        
+        if not os.path.exists(full_cert_path) and not os.path.exists(cert_filename):
+             # Try simple path if not in certs subdir (fallback)
+             full_cert_path = cert_filename
 
-        client_state_logic = ClientHandshakeState("client_cert.json", current_subject_cn)
+        # If it's in certs dir, use that relative path for ClientHandshakeState
+        # But wait, utils.py and handshake clients have specific assumptions about paths.
+        # ClientHandshakeState takes `cert_filename`. 
+        # Inside ClientHandshakeState: `with open(cert_filename, 'r') ...`
+        # Inside `start_client`: it assumes files are local or provided via path.
+        
+        # We are chdir'd into handshake_dir.
+        # Certs are usually in `handshake_dir/certs/`.
+        
+        if os.path.exists(os.path.join("certs", cert_filename)):
+             cert_path_to_use = os.path.join("certs", cert_filename)
+        elif os.path.exists(cert_filename):
+             cert_path_to_use = cert_filename
+        else:
+             os.chdir(original_cwd)
+             return jsonify({"error": f"Certificate for user '{cn_name}' not found: {cert_filename}"}), 500
+
+        # Create Client Instance with specific user identity
+        # Key Subject is also 'cn_name' as per our create_user convention
+        try:
+            client_state_logic = ClientHandshakeState(cert_path_to_use, cn_name)
+        except Exception as e:
+            os.chdir(original_cwd)
+            return jsonify({"error": f"Failed to load user identity: {str(e)}"}), 500
+
         client_hello = client_state_logic.generate_client_hello()
         
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(600) # Increased timeout for large file uploads
+        s.settimeout(600) 
         s.connect((host, port))
         
         send_message(s, client_hello)
@@ -165,7 +234,7 @@ def connect_server():
         CLIENT_STATE["connected"] = True
         CLIENT_STATE["session_key"] = session_key
         CLIENT_STATE["remote_path"] = ""
-        CLIENT_STATE["username"] = username
+        CLIENT_STATE["username"] = session.get('username')
         
         os.chdir(original_cwd)
         
@@ -225,6 +294,12 @@ def remote_mkdir():
         res = receive_message(s)
         
         if res.get("Type") == "ActionAck" and res.get("Status") == "Success":
+            # Log successful directory creation
+            activity_logger.log_directory_create(
+                session.get('username', 'unknown'),
+                name,
+                request.remote_addr
+            )
             return jsonify({"success": True})
         else:
             return jsonify({"error": res.get("Message")}), 500
@@ -250,6 +325,12 @@ def remote_delete():
         res = receive_message(s)
         
         if res.get("Type") == "ActionAck" and res.get("Status") == "Success":
+            # Log successful deletion
+            activity_logger.log_file_delete(
+                session.get('username', 'unknown'),
+                path_to_del,
+                request.remote_addr
+            )
             return jsonify({"success": True})
         else:
             return jsonify({"error": res.get("Message")}), 500
@@ -288,6 +369,13 @@ def download_file():
             
             plaintext = utils.decrypt_data(CLIENT_STATE["session_key"], nonce, content)
             
+            # Log successful download
+            activity_logger.log_file_download(
+                session.get('username', 'unknown'),
+                filename,
+                request.remote_addr
+            )
+            
             # Save to temporary download folder or stream back?
             # Flask send_file can stream bytes
             import io
@@ -313,7 +401,16 @@ def upload_file():
 
     try:
         filename = file.filename
-        content = file.read()
+        original_content = file.read()
+        
+        # Privacy: Scrub metadata from file
+        scrubbed_content, metadata_removed = privacy_manager.scrub_file_metadata(
+            original_content,
+            filename
+        )
+        
+        # Use scrubbed content for upload
+        content = scrubbed_content
             
         nonce, ciphertext = utils.encrypt_data(CLIENT_STATE["session_key"], content)
         
@@ -330,12 +427,234 @@ def upload_file():
         
         ack = receive_message(s)
         if ack.get("Status") == "Success":
+            # Log successful upload
+            activity_logger.log_file_upload(
+                session.get('username', 'unknown'), 
+                filename, 
+                len(content),
+                request.remote_addr
+            )
+            
+            # Log metadata scrubbing if any was removed
+            if metadata_removed and not metadata_removed.get('error'):
+                logger.info(f"Metadata scrubbed from {filename}: {metadata_removed}")
+            
             return jsonify({"success": True})
         else:
             return jsonify({"error": ack.get("Message", "Upload failed")}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# --- Admin Panel Routes ---
+
+def admin_required(f):
+    """Decorator to restrict routes to Administrator role only."""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in') or session.get('role') != 'Administrator':
+            return jsonify({"error": "Access denied. Administrator privileges required."}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def create_user_programmatically(username, password, role, cn_name):
+    """
+    Programmatically creates a user with quantum certificate and database entries.
+    Mirrors the logic from create_user.py script.
+    """
+    import base64
+    from datetime import timezone
+    from dilithium_py.dilithium import Dilithium2
+    from auth_manager import auth_db
+    
+    try:
+        # 1. Generate Dilithium Keys
+        pk, sk = Dilithium2.keygen()
+        
+        # Correct paths: project_root is already at 'Codes' level
+        keys_dir = os.path.join(project_root, 'CA', 'keys')
+        certs_dir = os.path.join(handshake_dir, 'certs')
+        
+        sk_filename = os.path.join(keys_dir, f"{cn_name}_private.bin")
+        pk_filename = os.path.join(keys_dir, f"{cn_name}_public.bin")
+        
+        with open(sk_filename, 'wb') as f:
+            f.write(sk)
+        with open(pk_filename, 'wb') as f:
+            f.write(pk)
+        
+        # 2. Create Certificate
+        pub_key_b64 = base64.b64encode(pk).decode('utf-8')
+        subject = f"CN={cn_name},O=QuantumSFTP"
+        
+        cert = {
+            "SerialNumber": utils.generate_serial(),
+            "Subject": subject,
+            "Issuer": "CN=Quantum-CA",
+            "PublicKeyAlgorithm": "CRYSTALS-Dilithium-2",
+            "Public_Key": pub_key_b64,
+            "Validity_Not_Before": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "Validity_Not_After": "2030-12-31T23:59:59Z"
+        }
+        
+        # 3. Sign Certificate with CA Key
+        ca_priv_key = utils.load_dilithium_private_key("CA")
+        msg_to_sign = utils.serialize_for_signing(cert)
+        signature = utils.sign_message(ca_priv_key, msg_to_sign)
+        cert["Signature"] = signature
+        
+        cert_filename = os.path.join(certs_dir, f"{cn_name}_cert.json")
+        with open(cert_filename, 'w') as f:
+            json.dump(cert, f, indent=4)
+        
+        # 4. Register in Server DB
+        auth_db.add_user(username, role, cert_subject=subject)
+        
+        # 5. Register in Client User Manager
+        user_manager.add_user(username, password, cn_name, role)
+        
+        # 6. Create user storage directory (Codes/../ServerStorage = Q_SFTP/ServerStorage)
+        storage_dir = os.path.join(project_root, '..', 'ServerStorage', username)
+        os.makedirs(storage_dir, exist_ok=True)
+        
+        return True, "User created successfully"
+    
+    except Exception as e:
+        return False, str(e)
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    users = user_manager.list_all_users()
+    return render_template('admin.html', users=users)
+
+@app.route('/admin/create_user', methods=['POST'])
+@admin_required
+def admin_create_user():
+    data = request.json
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    role = data.get('role', 'Guest')
+    
+    if not username or not password:
+        return jsonify({"success": False, "message": "Username and password required"}), 400
+    
+    if user_manager.user_exists(username):
+        return jsonify({"success": False, "message": "Username already exists"}), 400
+    
+    # Generate certificate name
+    cn_name = f"{username.capitalize()}Client"
+    
+    success, msg = create_user_programmatically(username, password, role, cn_name)
+    
+    if success:
+        # Log admin action
+        activity_logger.log_user_created(
+            session.get('username'),
+            username,
+            role,
+            request.remote_addr
+        )
+        return jsonify({"success": True, "message": msg})
+    else:
+        return jsonify({"success": False, "message": msg}), 500
+
+@app.route('/admin/delete_user/<username>', methods=['DELETE'])
+@admin_required
+def admin_delete_user(username):
+    if username == session.get('username'):
+        return jsonify({"success": False, "message": "Cannot delete your own account"}), 400
+    
+    success, msg = user_manager.delete_user(username)
+    
+    if success:
+        # Log admin action
+        activity_logger.log_user_deleted(
+            session.get('username'),
+            username,
+            request.remote_addr
+        )
+        return jsonify({"success": True, "message": msg})
+    else:
+        return jsonify({"success": False, "message": msg}), 404
+
+@app.route('/admin/update_role/<username>', methods=['POST'])
+@admin_required
+def admin_update_role(username):
+    data = request.json
+    new_role = data.get('role')
+    
+    if not new_role or new_role not in ['Administrator', 'Standard', 'Guest']:
+        return jsonify({"success": False, "message": "Invalid role"}), 400
+    
+    success, msg = user_manager.update_user_role(username, new_role)
+    
+    if success:
+        # Log admin action
+        activity_logger.log_role_change(
+            session.get('username'),
+            username,
+            new_role,
+            request.remote_addr
+        )
+        return jsonify({"success": True, "message": msg})
+    else:
+        return jsonify({"success": False, "message": msg}), 404
+
+# Activity Logs API
+
+@app.route('/api/admin/logs', methods=['GET'])
+@admin_required
+def get_activity_logs():
+    """Get activity logs with optional filters."""
+    limit = request.args.get('limit', 100, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    username_filter = request.args.get('username', None)
+    action_filter = request.args.get('action', None)
+    
+    logs = activity_logger.get_logs(
+        limit=limit,
+        offset=offset,
+        username_filter=username_filter,
+        action_filter=action_filter
+    )
+    
+    return jsonify({"success": True, "logs": logs})
+
+@app.route('/api/admin/user_stats/<username>', methods=['GET'])
+@admin_required
+def get_user_stats(username):
+    """Get statistics for a specific user."""
+    stats = activity_logger.get_user_statistics(username)
+    return jsonify({"success": True, "stats": stats})
+
+@app.route('/admin/reset_password/<username>', methods=['POST'])
+@admin_required
+def admin_reset_password(username):
+    """Reset a user's password."""
+    data = request.json
+    new_password = data.get('password', '').strip()
+    
+    if not new_password:
+        return jsonify({"success": False, "message": "Password is required"}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({"success": False, "message": "Password must be at least 6 characters"}), 400
+    
+    success, msg = user_manager.reset_password(username, new_password)
+    
+    if success:
+        # Log admin action
+        activity_logger.log_role_change(
+            session.get('username'),
+            username,
+            'password_reset',
+            request.remote_addr
+        )
+        return jsonify({"success": True, "message": msg})
+    else:
+        return jsonify({"success": False, "message": msg}), 404
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

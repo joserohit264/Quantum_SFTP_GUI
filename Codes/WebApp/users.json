@@ -1,0 +1,20 @@
+{
+    "admin": {
+        "password_hash": "$2b$12$zmJBLeiNptBDKeGWMsm14.fBBG93B93fNUu3MjIaGkK1hz71r6VA6",
+        "certificate": "AdminClient",
+        "role": "Administrator",
+        "created_at": "2026-01-28T18:49:23.795937"
+    },
+    "bob": {
+        "password_hash": "$2b$12$C.3Y0RySP5VyKiOt3fpQ0uUqoubr0hwNwfZpxyoVaJSJXmz/KiyLu",
+        "certificate": "BobClient",
+        "role": "Standard",
+        "created_at": "2026-01-28T19:16:17.500723"
+    },
+    "guest2": {
+        "password_hash": "$2b$12$aoDqdllF7yrEYVLnv2nKSe0TY4B7l7QqGDDdwNLJdE25JL/EpzXeG",
+        "certificate": "Guest2Client",
+        "role": "Guest",
+        "created_at": "2026-01-28T19:34:25.888743"
+    }
+}

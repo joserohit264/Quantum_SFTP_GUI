@@ -153,8 +153,10 @@
 
         async function performLogin() {
             const user = document.getElementById('login-username').value;
-            if (!user) {
-                showError("Please enter your username");
+            const pass = document.getElementById('login-password').value;
+
+            if (!user || !pass) {
+                showError("Please enter username and password");
                 return;
             }
 
@@ -162,26 +164,46 @@
             const port = parseInt(document.getElementById('host-port').value);
             const btn = document.querySelector('#view-login .btn-auth');
 
-            btn.innerText = "Connecting...";
+            btn.innerText = "Verifying Credentials...";
             btn.disabled = true;
 
             try {
-                const res = await fetch('/api/connect', {
+                // Step 1: Web Login (Validate Password & Load Cert Mapping)
+                const loginRes = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ip: host, port: port, username: user })
+                    body: JSON.stringify({ username: user, password: pass })
                 });
-                const data = await res.json();
 
-                if (data.status && data.connected) {
+                const loginData = await loginRes.json();
+
+                if (!loginData.success) {
+                    showError(loginData.message || "Login failed");
+                    btn.innerText = "Login";
+                    btn.disabled = false;
+                    return;
+                }
+
+                // Step 2: Establish Quantum-Safe Handshake uses user cert loaded in session
+                btn.innerText = "Establishing Quantum Link...";
+
+                const connectRes = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: host, port: port })
+                });
+                const connectData = await connectRes.json();
+
+                if (connectData.status && connectData.connected) {
                     window.location.href = "/";
                 } else {
-                    showError(data.error || "Connection failed");
+                    showError(connectData.error || "Handshake failed");
                     btn.innerText = "Login";
                     btn.disabled = false;
                 }
             } catch (e) {
-                showError("Server unreachable");
+                console.error(e);
+                showError("Connection error: " + e.message);
                 btn.innerText = "Login";
                 btn.disabled = false;
             }

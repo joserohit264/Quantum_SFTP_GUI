@@ -66,9 +66,64 @@ Open your browser and navigate to: `http://127.0.0.1:5000`
     *   **Directory Isolation**: Each user has a private storage directory (`ServerStorage/<username>`).
 *   **Malicious File Protection**:
     *   **Pre-Storage Validation**: Uploads are scanned for dangerous extensions and magic number mismatches before being saved.
-*   **Linkability Mitigation**:
-    *   **Secure Session IDs**: Uses cryptographically secure random tokens.
-    *   **Metadata Privacy**: Minimal info exposed in file listings.
+
+## 8. Privacy & Anti-Linkability Features
+
+Q-SFTP implements privacy-enhancing features to prevent user tracking and protect metadata while maintaining security audit capabilities.
+
+### Metadata Privacy
+-   **Automatic Metadata Scrubbing**: Removes identifying information from uploaded files
+    -   **Images** (JPG, PNG, GIF): Strips EXIF data (camera info, GPS, timestamps)
+    -   **PDFs**: Removes author, creator, producer, and dates
+    -   **Word Documents**: Removes author, company, last modified by
+-   **Anonymized Statistics**: Aggregate analytics without individual tracking
+-   **Configurable**: Enable/disable via `privacy_config.json`
+
+### Network Privacy
+-   **IP Address Hashing**: Network privacy with daily rotating salts
+    -   Hashes IP addresses before storage in activity logs
+    -   Daily salt rotation prevents long-term tracking
+    -   Pattern detection possible within 24 hours only
+    -   Original IP addresses never stored
+
+### User Privacy Controls
+-   **Dual-Layer Logging**: Full audit trail for security + anonymized stats for privacy
+-   **Session Unlinkability**: Cryptographically secure session rotation
+-   **File Categorization**: Privacy-preserving file type classification
+
+### Testing Privacy Features
+Run the comprehensive privacy test suite:
+```bash
+python test_privacy_features.py
+```
+
+Expected output:
+```
+✅ PASS - Configuration
+✅ PASS - IP Hashing
+✅ PASS - File Categorization
+✅ PASS - Image Metadata
+✅ PASS - PDF Metadata
+✅ PASS - Word Metadata
+```
+
+### Privacy Configuration
+Edit `Codes/WebApp/privacy_config.json`:
+```json
+{
+  "metadata_scrubbing": {
+    "enabled": true,
+    "file_types": ["jpg", "jpeg", "png", "gif", "pdf", "docx"]
+  },
+  "ip_anonymization": {
+    "enabled": true,
+    "hash_length": 16
+  }
+}
+```
+
+### Compliance
+These features protect against metadata harvesting and user behavior profiling while maintaining security compliance (GDPR, CCPA ready).
 
 ## 9. User Management & Demo
 The system includes tools to manage users and demonstrate RBAC.
