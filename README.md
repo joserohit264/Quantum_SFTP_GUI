@@ -62,10 +62,22 @@ The easiest way to run the application is using the included batch script:
 
 ### Prerequisites
 *   Python 3.8+
-*   Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+
+**1. Create & Activate Virtual Environment:**
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
+
+# Linux/Mac
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**2. Install Dependencies:**
+```bash
+pip install -r requirements.txt
+```
 
 ### Running Manually
 **1. Start the Server:**
