@@ -1,0 +1,17 @@
+{
+    "enabled": true,
+    "algorithm": "SHA-256",
+    "verify_on_upload": true,
+    "verify_on_download": true,
+    "reject_on_mismatch": true,
+    "integrity_checks": {
+        "enabled": true,
+        "interval_hours": 24,
+        "alert_admin": true,
+        "auto_quarantine": false
+    },
+    "version_control": {
+        "enabled": true,
+        "max_versions": 10
+    }
+}

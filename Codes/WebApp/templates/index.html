@@ -83,10 +83,24 @@
 
         <!-- Data Table -->
         <div class="data-table-container">
-            <h3 class="table-title" id="table-title">Contents of: /</h3>
+            <div class="table-header-row">
+                <h3 class="table-title" id="table-title">Contents of: /</h3>
+                <div class="bulk-actions hidden" id="bulk-actions">
+                    <span class="selected-count" id="selected-count">0 selected</span>
+                    <button class="btn-bulk-download" onclick="downloadSelected()">
+                        <i class="fa-solid fa-download"></i> Download
+                    </button>
+                    <button class="btn-bulk-delete" onclick="deleteSelected()">
+                        <i class="fa-solid fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)">
+                        </th>
                         <th>Name</th>
                         <th>Type</th>
                         <th>Size</th>
@@ -97,7 +111,7 @@
                 <tbody id="file-table-body">
                     <!-- JS populates this -->
                     <tr>
-                        <td colspan="5" class="loading-cell"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...
+                        <td colspan="6" class="loading-cell"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...
                         </td>
                     </tr>
                 </tbody>
@@ -109,11 +123,23 @@
     <div id="upload-progress-container" class="upload-progress-popup hidden">
         <div class="progress-info">
             <span id="upload-filename" class="font-mono">filename.ext</span>
+            <small id="upload-file-counter" style="opacity: 0.7; margin-left: 8px;"></small>
             <div class="progress-track">
                 <div id="upload-bar" class="progress-fill" style="width: 0%"></div>
             </div>
+            <small id="upload-status" style="opacity: 0.7; margin-top: 4px; display: block;"></small>
         </div>
-        <button id="btn-cancel-upload" class="btn-cancel">Cancel</button>
+        <div class="upload-controls">
+            <button id="btn-pause-upload" class="btn-pause">
+                <i class="fa-solid fa-pause"></i> Pause
+            </button>
+            <button id="btn-resume-upload" class="btn-resume hidden">
+                <i class="fa-solid fa-play"></i> Resume
+            </button>
+            <button id="btn-cancel-upload" class="btn-cancel">
+                <i class="fa-solid fa-xmark"></i> Cancel
+            </button>
+        </div>
     </div>
 
     <!-- Upload Complete Toast (Bottom Right) -->
@@ -125,6 +151,64 @@
         <button class="toast-close" onclick="closeToast()">
             <i class="fa-solid fa-xmark"></i>
         </button>
+    </div>
+
+    <!-- Hash Verification Modal -->
+    <div id="hash-verification-modal" class="hash-modal hidden">
+        <div class="hash-modal-content">
+            <div class="hash-modal-header">
+                <h3 id="hash-modal-title">🔒 File Integrity Verification</h3>
+                <button class="hash-modal-close" onclick="closeHashModal()">×</button>
+            </div>
+
+            <div class="hash-modal-body">
+                <!-- Verification Status -->
+                <div id="hash-status-section" class="hash-status">
+                    <div class="hash-status-icon" id="hash-status-icon">✓</div>
+                    <div class="hash-status-text">
+                        <h4 id="hash-status-title">Verified</h4>
+                        <p id="hash-status-message">File integrity confirmed</p>
+                    </div>
+                </div>
+
+                <!-- File Info -->
+                <div class="hash-info-row">
+                    <span class="hash-label">Filename:</span>
+                    <span class="hash-value" id="hash-filename">-</span>
+                </div>
+                <div class="hash-info-row">
+                    <span class="hash-label">File Size:</span>
+                    <span class="hash-value" id="hash-filesize">-</span>
+                </div>
+
+                <!-- Hash Comparison -->
+                <div class="hash-comparison">
+                    <div class="hash-block">
+                        <div class="hash-block-title">Original Hash (Upload)</div>
+                        <div class="hash-block-value" id="hash-original">-</div>
+                        <div class="hash-block-label">SHA-256</div>
+                    </div>
+
+                    <div class="hash-arrow">→</div>
+
+                    <div class="hash-block">
+                        <div class="hash-block-title">Current Hash (Download)</div>
+                        <div class="hash-block-value" id="hash-current">-</div>
+                        <div class="hash-block-label">SHA-256</div>
+                    </div>
+                </div>
+
+                <!-- Match Indicator -->
+                <div id="hash-match-indicator" class="hash-match">
+                    <span id="hash-match-icon">✓</span>
+                    <span id="hash-match-text">Hashes Match - File is Authentic</span>
+                </div>
+            </div>
+
+            <div class="hash-modal-footer">
+                <button class="btn-hash-close" onclick="closeHashModal()">Close</button>
+            </div>
+        </div>
     </div>
 
     <script src="/static/app.js"></script>

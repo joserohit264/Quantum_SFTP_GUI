@@ -3,6 +3,7 @@ cryptography
 kyber-py
 dilithium-py
 bcrypt
+schedule
 
 # Privacy Features (Phase 1)
 Pillow>=10.0.0

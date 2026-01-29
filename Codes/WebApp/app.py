@@ -337,6 +337,101 @@ def remote_delete():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/remote/read', methods=['POST'])
+def remote_read():
+    if not CLIENT_STATE["connected"]:
+        return jsonify({"error": "Not connected"}), 400
+        
+    data = request.json
+    file_path = data.get('path')
+    
+    try:
+        from hash_verifier import compute_data_hash, get_file_hash, compare_hashes
+        
+        s = CLIENT_STATE["socket"]
+        
+        # Request file download
+        req = {
+            "Type": "DownloadFile",
+            "Filename": os.path.basename(file_path),
+            "Path": os.path.dirname(file_path) or CLIENT_STATE["remote_path"]
+        }
+        send_message(s, req)
+        
+        res = receive_message(s)
+        
+        if res.get("Type") == "Error":
+            return jsonify({"error": res.get("Message")}), 404
+            
+        if res.get("Type") == "FileTransfer":
+            # Decrypt
+            content_b64 = res["Content"]
+            nonce_b64 = res["Nonce"]
+            
+            content = base64.b64decode(content_b64)
+            nonce = base64.b64decode(nonce_b64)
+            
+            plaintext = utils.decrypt_data(CLIENT_STATE["session_key"], nonce, content)
+            
+            # HASH VERIFICATION: Compute current hash of downloaded file
+            current_hash = compute_data_hash(plaintext)
+            logger.info(f"Download hash for {os.path.basename(file_path)}: {current_hash[:16]}...")
+            
+            # Get stored hash from registry (construct full server path)
+            username = session.get('username', 'unknown')
+            remote_path = CLIENT_STATE["remote_path"]
+            server_storage_path = os.path.join(
+                os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                username, remote_path, os.path.basename(file_path)
+            )
+            server_storage_path = os.path.normpath(server_storage_path)
+            
+            stored_hash_entry = get_file_hash(server_storage_path)
+            verification_status = "UNTRACKED"  # Default if not in registry
+            
+            if stored_hash_entry:
+                stored_hash = stored_hash_entry.get('hash_sha256')
+                if stored_hash and compare_hashes(current_hash, stored_hash):
+                    verification_status = "VERIFIED"
+                    logger.info(f"✓ Download verified: hash matches registry")
+                else:
+                    verification_status = "TAMPERED"
+                    logger.warning(f"⚠ File tampering detected!")
+                    logger.warning(f"  Current hash:  {current_hash}")
+                    logger.warning(f"  Stored hash:   {stored_hash}")
+                    
+                    # Log security event
+                    activity_logger.log_security_event(
+                        username,
+                        'download_hash_mismatch',
+                        f"File: {os.path.basename(file_path)}, Current: {current_hash[:16]}..., Stored: {stored_hash[:16]}...",
+                        request.remote_addr
+                    )
+            else:
+                logger.info(f"File not in hash registry (uploaded before Phase 2): {os.path.basename(file_path)}")
+            
+            # Log successful download
+            activity_logger.log_file_download(
+                username,
+                os.path.basename(file_path),
+                request.remote_addr
+            )
+            
+            # Return base64-encoded content with hash verification info
+            return jsonify({
+                "success": True,
+                "content": base64.b64encode(plaintext).decode('utf-8'),
+                "hash": current_hash,
+                "stored_hash": stored_hash_entry.get('hash_sha256') if stored_hash_entry else None,
+                "hash_algorithm": "SHA-256",
+                "verification_status": verification_status,
+                "file_size": len(plaintext)
+            })
+        else:
+            return jsonify({"error": "Unexpected response"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/download', methods=['POST'])
 def download_file():
     if not CLIENT_STATE["connected"]:
@@ -400,17 +495,57 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
 
     try:
+        from hash_verifier import compute_data_hash, compare_hashes, register_file_hash
+        
         filename = file.filename
         original_content = file.read()
         
+        # HASH VERIFICATION: Get client-provided hash
+        client_hash = request.form.get('file_hash', None)
+        
+        # Compute server-side hash of original content (before scrubbing)
+        server_hash_original = compute_data_hash(original_content) if client_hash else None
+        
+        # Verify hash match if client provided one
+        if client_hash:
+            if not compare_hashes(client_hash, server_hash_original):
+                # Hash mismatch - file corrupted during transfer
+                logger.error(f"Upload hash mismatch for {filename}")
+                logger.error(f"  Client hash: {client_hash}")
+                logger.error(f"  Server hash: {server_hash_original}")
+                
+                # Log security event
+                activity_logger.log_security_event(
+                    session.get('username', 'unknown'),
+                    'upload_hash_mismatch',
+                    f"File: {filename}, Client: {client_hash[:16]}..., Server: {server_hash_original[:16]}...",
+                    request.remote_addr
+                )
+                
+                return jsonify({
+                    "error": "File integrity check failed. Upload rejected.",
+                    "details": "Hash mismatch detected - file may be corrupted"
+                }), 400
+            else:
+                logger.info(f"✓ Upload hash verified for {filename}: {client_hash[:16]}...")
+        
         # Privacy: Scrub metadata from file
-        scrubbed_content, metadata_removed = privacy_manager.scrub_file_metadata(
-            original_content,
-            filename
-        )
+        try:
+            scrubbed_content, metadata_removed = privacy_manager.scrub_file_metadata(
+                original_content,
+                filename
+            )
+        except Exception as scrub_err:
+            # If scrubbing fails, use original content and log the error
+            print(f"[WARNING] Metadata scrubbing failed for {filename}: {scrub_err}")
+            scrubbed_content = original_content
+            metadata_removed = {"error": str(scrub_err)}
         
         # Use scrubbed content for upload
         content = scrubbed_content
+        
+        # Compute hash of final content (after scrubbing) for registry
+        final_hash = compute_data_hash(content)
             
         nonce, ciphertext = utils.encrypt_data(CLIENT_STATE["session_key"], content)
         
@@ -427,24 +562,57 @@ def upload_file():
         
         ack = receive_message(s)
         if ack.get("Status") == "Success":
+            # Construct server storage path
+            username = session.get('username', 'unknown')
+            remote_path = CLIENT_STATE["remote_path"]
+            server_storage_path = os.path.join(
+                os.path.dirname(__file__), '..', '..', 'ServerStorage', 
+                username, remote_path, filename
+            )
+            server_storage_path = os.path.normpath(server_storage_path)
+            
+            # Register hash in database (using post-scrubbing hash)
+            try:
+                file_id = register_file_hash(
+                    filepath=server_storage_path,
+                    hash_value=final_hash,
+                    username=username,
+                    filename=filename,
+                    file_size=len(content),
+                    algorithm='sha256'
+                )
+                logger.info(f"✓ Registered file hash: {file_id}")
+            except Exception as hash_err:
+                logger.warning(f"Failed to register hash: {hash_err}")
+            
             # Log successful upload
             activity_logger.log_file_upload(
-                session.get('username', 'unknown'), 
+                username, 
                 filename, 
                 len(content),
                 request.remote_addr
             )
             
-            # Log metadata scrubbing if any was removed
-            if metadata_removed and not metadata_removed.get('error'):
-                logger.info(f"Metadata scrubbed from {filename}: {metadata_removed}")
+            # Log metadata scrubbing if any was removed (with error handling)
+            try:
+                if metadata_removed and not metadata_removed.get('error'):
+                    logger.info(f"Metadata scrubbed from {filename}: {metadata_removed}")
+            except Exception as log_err:
+                # Don't fail upload if logging fails
+                print(f"Warning: Failed to log metadata scrubbing: {log_err}")
             
-            return jsonify({"success": True})
+            return jsonify({
+                "success": True,
+                "hash": final_hash,
+                "hash_verified": client_hash is not None
+            })
         else:
             return jsonify({"error": ack.get("Message", "Upload failed")}), 500
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Upload error: {str(e)}"}), 500
 
 # --- Admin Panel Routes ---
 
@@ -656,5 +824,62 @@ def admin_reset_password(username):
     else:
         return jsonify({"success": False, "message": msg}), 404
 
+# Integrity Checker API (Phase 4)
+
+@app.route('/api/admin/integrity/status', methods=['GET'])
+@admin_required
+def get_integrity_status():
+    """Get current integrity checker status."""
+    try:
+        from integrity_checker import get_checker_status
+        status = get_checker_status()
+        return jsonify({"success": True, "status": status})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/admin/integrity/check', methods=['POST'])
+@admin_required
+def trigger_integrity_check():
+    """Manually trigger an integrity check."""
+    try:
+        from integrity_checker import trigger_manual_check
+        
+        # Run check in background thread to avoid blocking
+        import threading
+        
+        def run_check():
+            results = trigger_manual_check()
+            logger.info(f"Manual integrity check completed: {results}")
+        
+        thread = threading.Thread(target=run_check)
+        thread.start()
+        
+        return jsonify({
+            "success": True,
+            "message": "Integrity check started in background"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/admin/integrity/stats', methods=['GET'])
+@admin_required
+def get_integrity_stats():
+    """Get hash registry statistics."""
+    try:
+        from hash_verifier import hash_verifier
+        stats = hash_verifier.get_registry_stats()
+        return jsonify({"success": True, "stats": stats})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == '__main__':
+    # Start integrity monitoring in background
+    try:
+        from integrity_checker import start_integrity_monitoring
+        start_integrity_monitoring()
+        logger.info("✓ Integrity monitoring started")
+    except Exception as e:
+        logger.warning(f"Failed to start integrity monitoring: {e}")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
