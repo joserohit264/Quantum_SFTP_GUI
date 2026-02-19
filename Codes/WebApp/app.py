@@ -417,7 +417,7 @@ def remote_read():
             verification_status = "UNTRACKED"  # Default if not in registry
             
             if stored_hash_entry:
-                stored_hash = stored_hash_entry.get('hash_sha256')
+                stored_hash = stored_hash_entry.get('hash_blake2b') or stored_hash_entry.get('hash_sha256')
                 if stored_hash and compare_hashes(current_hash, stored_hash):
                     verification_status = "VERIFIED"
                     logger.info(f"✓ Download verified: hash matches registry")
@@ -449,8 +449,8 @@ def remote_read():
                 "success": True,
                 "content": base64.b64encode(plaintext).decode('utf-8'),
                 "hash": current_hash,
-                "stored_hash": stored_hash_entry.get('hash_sha256') if stored_hash_entry else None,
-                "hash_algorithm": "SHA-256",
+                "stored_hash": (stored_hash_entry.get('hash_blake2b') or stored_hash_entry.get('hash_sha256')) if stored_hash_entry else None,
+                "hash_algorithm": "BLAKE2b",
                 "verification_status": verification_status,
                 "file_size": len(plaintext)
             })
@@ -620,7 +620,7 @@ def upload_file():
                     username=username,
                     filename=filename,
                     file_size=len(content),
-                    algorithm='sha256'
+                    algorithm='blake2b'
                 )
                 logger.info(f"✓ Registered file hash: {file_id}")
             except Exception as hash_err:

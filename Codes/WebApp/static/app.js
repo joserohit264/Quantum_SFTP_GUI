@@ -497,15 +497,14 @@ async function uploadFile(file, shouldRefresh = true) {
         uploadStatus.innerText = 'Computing hash...';
     }
 
-    // Compute SHA-256 hash before upload
+    // Compute BLAKE2b hash before upload
     let fileHash = null;
     try {
         const buffer = await file.arrayBuffer();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const uint8 = new Uint8Array(buffer);
+        fileHash = blakejs.blake2bHex(uint8, null, 32);
 
-        console.log(`✓ Computed hash for ${file.name}: ${fileHash.substring(0, 16)}...`);
+        console.log(`✓ Computed BLAKE2b hash for ${file.name}: ${fileHash.substring(0, 16)}...`);
         uploadStatus.innerText = uploadQueue.totalFiles > 1 ? 'Uploading...' : 'Uploading with verification...';
     } catch (hashError) {
         console.warn('Failed to compute hash, uploading without verification:', hashError);
@@ -726,7 +725,7 @@ async function downloadFile(filename) {
                     currentHash: data.hash,
                     storedHash: data.stored_hash || data.hash,
                     verificationStatus: data.verification_status,
-                    algorithm: data.hash_algorithm || 'SHA-256'
+                    algorithm: data.hash_algorithm || 'BLAKE2b'
                 };
 
                 // Show download notification with integrity check button

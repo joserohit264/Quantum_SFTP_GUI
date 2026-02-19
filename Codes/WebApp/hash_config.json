@@ -1,6 +1,6 @@
 {
     "enabled": true,
-    "algorithm": "SHA-256",
+    "algorithm": "BLAKE2b",
     "verify_on_upload": true,
     "verify_on_download": true,
     "reject_on_mismatch": true,

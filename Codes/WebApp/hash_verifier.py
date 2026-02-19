@@ -2,8 +2,8 @@
 File Integrity & Hash Verification Module for Q-SFTP
 
 Provides cryptographic hash functions for ensuring file integrity throughout
-upload, storage, and download operations. Uses SHA-256 (quantum-resistant
-for collision attacks) as the primary algorithm.
+upload, storage, and download operations. Uses BLAKE2b (256-bit) as the
+primary algorithm — faster than SHA-256 with equivalent security.
 
 Author: Q-SFTP Development Team
 Created: 2026-01-29
@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_ALGORITHM = 'sha256'
+DEFAULT_ALGORITHM = 'blake2b'
 CHUNK_SIZE = 8192  # 8KB chunks for large file processing
 HASH_REGISTRY_PATH = os.path.join(os.path.dirname(__file__), '..', 'Data', 'hash_registry.json')
 HASH_HISTORY_PATH = os.path.join(os.path.dirname(__file__), '..', 'Data', 'hash_history.json')
@@ -42,7 +42,7 @@ class HashVerifier:
         """Load hash verification configuration"""
         default_config = {
             "enabled": True,
-            "algorithm": "SHA-256",
+            "algorithm": "BLAKE2b",
             "verify_on_upload": True,
             "verify_on_download": True,
             "reject_on_mismatch": True,
@@ -103,7 +103,7 @@ class HashVerifier:
         
         Args:
             filepath: Absolute path to file
-            algorithm: Hash algorithm ('sha256' or 'sha3_256')
+            algorithm: Hash algorithm ('blake2b', 'sha256', or 'sha3_256')
             
         Returns:
             Hexadecimal hash string, or None if file doesn't exist
@@ -114,7 +114,9 @@ class HashVerifier:
         
         try:
             # Select hash algorithm
-            if algorithm.lower() == 'sha256':
+            if algorithm.lower() == 'blake2b':
+                hasher = hashlib.blake2b(digest_size=32)
+            elif algorithm.lower() == 'sha256':
                 hasher = hashlib.sha256()
             elif algorithm.lower() == 'sha3_256':
                 hasher = hashlib.sha3_256()
@@ -144,13 +146,15 @@ class HashVerifier:
         
         Args:
             data: Bytes to hash
-            algorithm: Hash algorithm
+            algorithm: Hash algorithm ('blake2b', 'sha256', or 'sha3_256')
             
         Returns:
             Hexadecimal hash string
         """
         try:
-            if algorithm.lower() == 'sha256':
+            if algorithm.lower() == 'blake2b':
+                hasher = hashlib.blake2b(digest_size=32)
+            elif algorithm.lower() == 'sha256':
                 hasher = hashlib.sha256()
             elif algorithm.lower() == 'sha3_256':
                 hasher = hashlib.sha3_256()

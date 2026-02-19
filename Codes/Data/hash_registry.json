@@ -1187,10 +1187,22 @@
       "last_verified": "2026-02-19T08:39:43.970515",
       "verification_status": "VALID",
       "version": 1
+    },
+    "9ff618de-9fff-46f2-9ad6-11ee7b45ef81": {
+      "filename": "Jose_Rohit_Resume.pdf",
+      "filepath": "/mnt/c/Users/ADMIN/Desktop/Quantum_SFTP/Q_SFTP/ServerStorage/shared/Jose_Rohit_Resume.pdf",
+      "hash_blake2b": "1dfc1109f8e7c11c9fbf2d6ce21e05ff28c135dd23014e8ad7836101f3681976",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 35374,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-02-19T12:31:41.990896",
+      "last_verified": "2026-02-19T12:31:41.990916",
+      "verification_status": "VALID",
+      "version": 1
     }
   },
   "metadata": {
-    "total_files": 99,
+    "total_files": 100,
     "last_check": "2026-01-29T17:10:19.809016",
     "corrupted_count": 0,
     "missing_count": 20

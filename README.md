@@ -9,7 +9,7 @@ Traditional secure file transfer protocols (like SFTP/SCP) rely on classical cry
 *   **Key Encapsulation (KEM)**: [Kyber512](https://pypi.org/project/kyber-py/) (NIST PQC Winner)
 *   **Digital Signatures**: [Dilithium2](https://pypi.org/project/dilithium-py/) (NIST PQC Winner)
 *   **Symmetric Encryption**: AES-256-GCM
-*   **Integrity Verification**: SHA-256 Hashing
+*   **Integrity Verification**: BLAKE2b (256-bit) Hashing
 *   **Frontend**: HTML5, CSS3 (Variables for Theming), Vanilla JavaScript
 
 ## 3. System Architecture
@@ -131,10 +131,10 @@ graph LR
 ### 🛡️ Core Security & Privacy
 *   **Quantum-Safe Security**: Kyber512 for key exchange + Dilithium2 for authentication.
 *   **File Integrity Verification**:
-    *   **Upload Verification**: Computes SHA-256 hash before upload and verifies against server's received file.
+    *   **Upload Verification**: Computes BLAKE2b hash before upload and verifies against server's received file.
     *   **Download Verification**: Automatically verifies data integrity upon download.
     *   **Tamper Detection**: Visual alerts if a file has been modified on the server.
-    *   **Hash Registry**: Secure database tracking all file hashes.
+    *   **Hash Registry**: Secure database tracking all file hashes (BLAKE2b with SHA-256 backward compatibility).
 *   **Metadata Stripping (Privacy)**:
     *   **Images (JPG/PNG)**: Removes EXIF data (GPS, Camera info).
     *   **PDFs**: Removes Author, Creator, Dates.

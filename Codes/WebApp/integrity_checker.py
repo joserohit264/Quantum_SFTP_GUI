@@ -86,7 +86,7 @@ class IntegrityChecker:
             # Check each file
             for file_id, entry in files.items():
                 filepath = entry.get('filepath')
-                stored_hash = entry.get('hash_sha256')
+                stored_hash = entry.get('hash_blake2b') or entry.get('hash_sha256')
                 filename = entry.get('filename', 'unknown')
                 
                 logger.info(f"Checking: {filename}")
