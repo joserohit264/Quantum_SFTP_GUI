@@ -1,20 +1,26 @@
 {
     "admin": {
-        "password_hash": "$2b$12$zmJBLeiNptBDKeGWMsm14.fBBG93B93fNUu3MjIaGkK1hz71r6VA6",
+        "password_hash": "$2b$12$qfP0wqtgNOAcfcrOkxNAe.Uc6h96XTDJw36mdpBCaDuKeAdOL1mPa",
         "certificate": "AdminClient",
         "role": "Administrator",
         "created_at": "2026-01-28T18:49:23.795937"
     },
     "bob": {
-        "password_hash": "$2b$12$C.3Y0RySP5VyKiOt3fpQ0uUqoubr0hwNwfZpxyoVaJSJXmz/KiyLu",
+        "password_hash": "$2b$12$/8M7kkAg42M6.dLbhJe6nO32hU02VB9VvcY2ZPeaE8o0rBVUZNyUO",
         "certificate": "BobClient",
         "role": "Standard",
         "created_at": "2026-01-28T19:16:17.500723"
     },
     "guest2": {
-        "password_hash": "$2b$12$aoDqdllF7yrEYVLnv2nKSe0TY4B7l7QqGDDdwNLJdE25JL/EpzXeG",
+        "password_hash": "$2b$12$ld1Slvc5v/DXCzc6b2xHO.sg8MmrUR9q6PUQTPHAPy.md32p.Ult2",
         "certificate": "Guest2Client",
         "role": "Guest",
         "created_at": "2026-01-28T19:34:25.888743"
+    },
+    "jose": {
+        "password_hash": "$2b$12$09ZUHaW8eehD94T7k6tgYOGetv3YVOwR6yIsZ82.kYsxIJMWCSCnG",
+        "certificate": "JoseClient",
+        "role": "Administrator",
+        "created_at": "2026-01-29T19:03:13.547022"
     }
 }

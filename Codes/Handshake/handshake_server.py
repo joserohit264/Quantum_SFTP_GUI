@@ -265,6 +265,11 @@ def handle_client(conn, addr, server_state):
     if not os.path.exists(GLOBAL_STORAGE_ROOT):
         os.makedirs(GLOBAL_STORAGE_ROOT)
     
+    # Setup Shared Storage (accessible to all users)
+    SHARED_STORAGE_ROOT = os.path.join(GLOBAL_STORAGE_ROOT, "shared")
+    if not os.path.exists(SHARED_STORAGE_ROOT):
+        os.makedirs(SHARED_STORAGE_ROOT)
+    
     try:
         t_start_handshake = time.time()
         # Step 1: Receive ClientHello
@@ -276,8 +281,6 @@ def handle_client(conn, addr, server_state):
         
         # User Lookup & Context
         cert_subject = client_hello["client_cert"].get("Subject")
-        # Ensure 'O=QuantumSFTP' or other comma separated fields match how we stored them. 
-        # Ideally, we should parse the DN, but for now assuming identical string match or substring logic.
         user = auth_db.get_user_by_subject(cert_subject)
         if not user:
             print(f"[Auth] No user found for subject: {cert_subject}")
@@ -355,10 +358,20 @@ def handle_client(conn, addr, server_state):
                     continue
 
                 path = msg.get("Path", "")
-                target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
-                if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
                 
-                print(f"[RX] Command: ListFiles (Path: /{path})")
+                # Determine if this is a shared folder path
+                is_shared_path = (path == "shared" or path.startswith("shared/"))
+                
+                if is_shared_path:
+                    # Resolve against shared storage
+                    relative = path[len("shared"):].lstrip("/")
+                    target_dir = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative))
+                    if not target_dir.startswith(SHARED_STORAGE_ROOT): target_dir = SHARED_STORAGE_ROOT
+                else:
+                    target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
+                    if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
+                
+                print(f"[RX] Command: ListFiles (Path: /{path}, Shared: {is_shared_path})")
                 
                 files = []
                 try:
@@ -375,6 +388,18 @@ def handle_client(conn, addr, server_state):
                             })
                 except Exception as e:
                     print(f"[Error] Listing failed: {e}")
+                
+                # Inject virtual 'shared' folder into root listing
+                if not path or path == "" or path == "/":
+                    # Check if 'shared' is not already in the list (shouldn't be in user dir)
+                    if not any(f['name'] == 'shared' for f in files):
+                        files.insert(0, {
+                            "name": "shared",
+                            "type": "dir",
+                            "size": 0,
+                            "modified": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            "shared": True
+                        })
 
                 response = {"Type": "FileList", "Files": files, "CurrentPath": path}
                 send_message(conn, response)
@@ -407,8 +432,17 @@ def handle_client(conn, addr, server_state):
                         continue
                     # -------------------------------------------------
                     
-                    target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
-                    if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
+                    # Determine if uploading to shared folder
+                    is_shared_path = (path == "shared" or path.startswith("shared/"))
+                    
+                    if is_shared_path:
+                        relative = path[len("shared"):].lstrip("/")
+                        target_dir = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative))
+                        if not target_dir.startswith(SHARED_STORAGE_ROOT): target_dir = SHARED_STORAGE_ROOT
+                    else:
+                        target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
+                        if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
+                    
                     if not os.path.exists(target_dir): os.makedirs(target_dir)
                     
                     save_path = os.path.join(target_dir, filename)
@@ -432,8 +466,18 @@ def handle_client(conn, addr, server_state):
                 path = msg.get("Path", "")
                 print(f"[RX] Download Request: {filename}")
                 
-                target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, filename))
-                if not target_path.startswith(USER_STORAGE_ROOT):
+                # Determine if downloading from shared folder
+                is_shared_path = (path == "shared" or path.startswith("shared/"))
+                
+                if is_shared_path:
+                    relative = path[len("shared"):].lstrip("/")
+                    target_path = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative, filename))
+                    allowed_root = SHARED_STORAGE_ROOT
+                else:
+                    target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, filename))
+                    allowed_root = USER_STORAGE_ROOT
+                
+                if not target_path.startswith(allowed_root):
                     send_message(conn, {"Type": "Error", "Message": "Permission Denied"})
                 elif os.path.exists(target_path):
                     with open(target_path, 'rb') as f:
@@ -459,8 +503,19 @@ def handle_client(conn, addr, server_state):
                 name = msg.get('Name')
                 path = msg.get("ParentPath", "")
                 print(f"[RX] CreateDir: {name}")
-                target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, name))
-                if target_dir.startswith(USER_STORAGE_ROOT):
+                
+                # Determine if creating in shared folder
+                is_shared_path = (path == "shared" or path.startswith("shared/"))
+                
+                if is_shared_path:
+                    relative = path[len("shared"):].lstrip("/")
+                    target_dir = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative, name))
+                    allowed_root = SHARED_STORAGE_ROOT
+                else:
+                    target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, name))
+                    allowed_root = USER_STORAGE_ROOT
+                
+                if target_dir.startswith(allowed_root):
                     if not os.path.exists(target_dir):
                         os.makedirs(target_dir)
                         send_message(conn, {"Type": "ActionAck", "Status": "Success"})
@@ -476,8 +531,24 @@ def handle_client(conn, addr, server_state):
 
                 path_to_del = msg.get('Path')
                 print(f"[RX] DeletePath: {path_to_del}")
-                target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path_to_del))
-                if target_path.startswith(USER_STORAGE_ROOT) and os.path.exists(target_path):
+                
+                # Determine if deleting from shared folder
+                is_shared_path = (path_to_del == "shared" or path_to_del.startswith("shared/"))
+                
+                # Prevent deleting the shared root itself
+                if path_to_del.rstrip("/") == "shared":
+                    send_message(conn, {"Type": "ActionAck", "Status": "Error", "Message": "Cannot delete the shared folder root"})
+                    continue
+                
+                if is_shared_path:
+                    relative = path_to_del[len("shared"):].lstrip("/")
+                    target_path = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative))
+                    allowed_root = SHARED_STORAGE_ROOT
+                else:
+                    target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path_to_del))
+                    allowed_root = USER_STORAGE_ROOT
+                
+                if target_path.startswith(allowed_root) and os.path.exists(target_path):
                      try:
                         if os.path.isdir(target_path):
                             import shutil

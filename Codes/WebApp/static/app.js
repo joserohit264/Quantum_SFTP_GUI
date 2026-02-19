@@ -2,7 +2,8 @@
 const CLIENT_STATE = {
     remote_path: "",
     connected: false,
-    speedLimit: 0
+    speedLimit: 0,
+    inSharedFolder: false
 };
 
 // Init
@@ -118,6 +119,7 @@ async function loadRemoteFiles(path = null) {
         if (data.error) throw new Error(data.error);
 
         CLIENT_STATE.remote_path = data.current_path || "";
+        CLIENT_STATE.inSharedFolder = (data.current_path === 'shared' || (data.current_path && data.current_path.startsWith('shared/')));
         renderRemoteFiles(data.files, data.current_path);
     } catch (err) {
         console.error(err);
@@ -180,6 +182,21 @@ function renderRemoteFiles(files, currentPath) {
     pathDisplay.innerText = currentPath || "Root";
     tableTitle.innerText = `Contents of: ${currentPath || "/"}`;
 
+    // Determine if we're inside the shared folder
+    const isInSharedFolder = (currentPath === 'shared' || (currentPath && currentPath.startsWith('shared/')));
+    const isGuest = (typeof USER_ROLE !== 'undefined' && USER_ROLE === 'Guest');
+    const isReadOnly = isGuest && isInSharedFolder;
+
+    // Hide/show upload and create dir cards based on context
+    const actionCards = document.querySelector('.card-grid');
+    if (actionCards) {
+        if (isGuest) {
+            actionCards.style.display = 'none';
+        } else {
+            actionCards.style.display = '';
+        }
+    }
+
     // "Up" Row
     if (currentPath && currentPath !== '/' && currentPath !== '') {
         const upRow = document.createElement('tr');
@@ -217,25 +234,31 @@ function renderRemoteFiles(files, currentPath) {
     files.forEach(file => {
         const tr = document.createElement('tr');
         const isDir = file.type === 'dir';
-        const icon = isDir ? 'fa-folder text-primary' : 'fa-file-lines text-muted';
+        const isSharedEntry = file.shared === true;
+        const icon = isSharedEntry ? 'fa-folder-open text-warning' : (isDir ? 'fa-folder text-primary' : 'fa-file-lines text-muted');
+        const displayName = isSharedEntry ? `${file.name} (Shared)` : file.name;
         const sizeText = isDir ? '-' : formatSize(file.size);
         const fullPath = currentPath ? `${currentPath}/${file.name}` : file.name;
 
+        // Determine if actions should be hidden (Guest in shared, or shared root entry)
+        const hideDeleteBtn = isReadOnly || isSharedEntry;
+        const hideCheckbox = isReadOnly;
+
         tr.innerHTML = `
             <td>
-                ${isDir ? '' : `<input type="checkbox" class="file-checkbox" data-path="${fullPath}" data-name="${file.name}" onchange="toggleFileSelection(this, '${fullPath}', '${file.name}')">`}
+                ${(!isDir && !hideCheckbox) ? `<input type="checkbox" class="file-checkbox" data-path="${fullPath}" data-name="${file.name}" onchange="toggleFileSelection(this, '${fullPath}', '${file.name}')">` : ''}
             </td>
             <td>
                 <i class="fa-solid ${icon}" style="margin-right:0.5rem;"></i>
-                <span class="${isDir ? 'folder-name' : ''}">${file.name}</span>
+                <span class="${isDir ? 'folder-name' : ''}">${displayName}</span>
             </td>
             <td>${file.type}</td>
             <td>${sizeText}</td>
             <td>${file.modified || '-'}</td>
             <td>
                 <div class="action-btn-group">
-                    ${!isDir ? `<button class="btn-action-dl" onclick="downloadFile('${file.name}')">Download</button>` : ''}
-                    <button class="btn-action-del" onclick="deleteRemoteItem('${file.name}')">Delete</button>
+                    ${(!isDir && !isSharedEntry) ? `<button class="btn-action-dl" onclick="downloadFile('${file.name}')">Download</button>` : ''}
+                    ${(!hideDeleteBtn && !isSharedEntry) ? `<button class="btn-action-del" onclick="deleteRemoteItem('${file.name}')">Delete</button>` : ''}
                 </div>
             </td>
         `;

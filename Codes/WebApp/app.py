@@ -63,6 +63,14 @@ def get_file_info(path):
     except Exception:
         return None
 
+# --- Permission Helper ---
+def check_write_permission():
+    """Check if current user has write permissions (not Guest role)"""
+    user_role = session.get('role', 'Guest')
+    if user_role == 'Guest':
+        return False, "Permission denied: Guest users have read-only access"
+    return True, None
+
 # --- Routes ---
 
 @app.route('/')
@@ -278,6 +286,11 @@ def remote_mkdir():
     if not CLIENT_STATE["connected"]:
          return jsonify({"error": "Not connected"}), 400
     
+    # Check write permissions
+    can_write, error_msg = check_write_permission()
+    if not can_write:
+        return jsonify({"error": error_msg}), 403
+    
     data = request.json
     name = data.get('name')
     parent = data.get('parent_path', '')
@@ -310,6 +323,11 @@ def remote_mkdir():
 def remote_delete():
     if not CLIENT_STATE["connected"]:
          return jsonify({"error": "Not connected"}), 400
+    
+    # Check write permissions
+    can_write, error_msg = check_write_permission()
+    if not can_write:
+        return jsonify({"error": error_msg}), 403
     
     data = request.json
     path_to_del = data.get('path')
@@ -380,10 +398,19 @@ def remote_read():
             # Get stored hash from registry (construct full server path)
             username = session.get('username', 'unknown')
             remote_path = CLIENT_STATE["remote_path"]
-            server_storage_path = os.path.join(
-                os.path.dirname(__file__), '..', '..', 'ServerStorage',
-                username, remote_path, os.path.basename(file_path)
-            )
+            
+            # Use shared storage path if in shared folder
+            is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
+            if is_shared:
+                server_storage_path = os.path.join(
+                    os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                    remote_path, os.path.basename(file_path)
+                )
+            else:
+                server_storage_path = os.path.join(
+                    os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                    username, remote_path, os.path.basename(file_path)
+                )
             server_storage_path = os.path.normpath(server_storage_path)
             
             stored_hash_entry = get_file_hash(server_storage_path)
@@ -487,6 +514,11 @@ def upload_file():
     if not CLIENT_STATE["connected"]:
          return jsonify({"error": "Not connected"}), 400
 
+    # Check write permissions
+    can_write, error_msg = check_write_permission()
+    if not can_write:
+        return jsonify({"error": error_msg}), 403
+
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
         
@@ -565,10 +597,19 @@ def upload_file():
             # Construct server storage path
             username = session.get('username', 'unknown')
             remote_path = CLIENT_STATE["remote_path"]
-            server_storage_path = os.path.join(
-                os.path.dirname(__file__), '..', '..', 'ServerStorage', 
-                username, remote_path, filename
-            )
+            
+            # Use shared storage path if in shared folder
+            is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
+            if is_shared:
+                server_storage_path = os.path.join(
+                    os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                    remote_path, filename
+                )
+            else:
+                server_storage_path = os.path.join(
+                    os.path.dirname(__file__), '..', '..', 'ServerStorage', 
+                    username, remote_path, filename
+                )
             server_storage_path = os.path.normpath(server_storage_path)
             
             # Register hash in database (using post-scrubbing hash)

@@ -12,7 +12,121 @@ Traditional secure file transfer protocols (like SFTP/SCP) rely on classical cry
 *   **Integrity Verification**: SHA-256 Hashing
 *   **Frontend**: HTML5, CSS3 (Variables for Theming), Vanilla JavaScript
 
-## 3. Key Features
+## 3. System Architecture
+
+```mermaid
+graph TB
+    subgraph "Client Layer (Web Browser)"
+        UI["Web GUI (HTML/CSS/JS)"]
+        UI -->|HTTP| Flask
+    end
+
+    subgraph "Web Application Layer (Flask - Port 5000)"
+        Flask["Flask App (app.py)"]
+        Auth["Auth Manager (auth_manager.py)"]
+        Privacy["Privacy Manager (metadata stripping)"]
+        Hash["Hash Verifier (hash_verifier.py)"]
+        Flask --> Auth
+        Flask --> Privacy
+        Flask --> Hash
+    end
+
+    subgraph "Transport Layer (PQC Handshake - Port 8888)"
+        Client["Client Handshake State"]
+        Server["Server Handshake State"]
+        Client <-->|"PQC Handshake (Kyber512 + Dilithium2)"| Server
+        Client <-->|"AES-256-GCM Encrypted Channel"| Server
+    end
+
+    subgraph "Security Layer"
+        CA["Certificate Authority (ca_tool.py)"]
+        RBAC["Role-Based Access Control"]
+        CA -->|"Sign/Verify Certs"| Server
+        CA -->|"Sign/Verify Certs"| Client
+        RBAC -->|"Enforce Permissions"| Server
+    end
+
+    subgraph "Storage Layer (ServerStorage/)"
+        UserDirs["User Directories (Isolated)"]
+        SharedDir["Shared Directory (All Users)"]
+        HashDB["Hash Registry (integrity_hashes.db)"]
+        ActivityLog["Activity Logs"]
+    end
+
+    Flask -->|"Socket Commands"| Client
+    Server --> UserDirs
+    Server --> SharedDir
+    Hash --> HashDB
+    Flask --> ActivityLog
+```
+
+### PQC Handshake Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    participant CA as Certificate Authority
+
+    Note over C,S: Phase 1 - Hello Exchange
+    C->>S: ClientHello (Certificate, Nonce, Timestamp)
+    S->>S: Verify Client Certificate (via CA)
+    S->>S: Check Timestamp Freshness (< 30s)
+    S->>C: ServerHello (Certificate, Kyber PK, Nonce, Dilithium Signature)
+    C->>C: Verify Server Signature & Certificate
+
+    Note over C,S: Phase 2 - Key Exchange (Kyber512)
+    C->>C: Encapsulate Shared Secret with Server Kyber PK
+    C->>S: ClientKeyShare (Ciphertext)
+    S->>S: Decapsulate → Shared Secret
+    Note over C,S: Both derive identical Shared Key
+
+    Note over C,S: Phase 3 - Mutual Authentication
+    C->>C: Compute Transcript Hash (SHA-256)
+    C->>S: ClientFinished (Dilithium Signature over Transcript)
+    S->>S: Verify Signature → Mutual Auth Complete
+    Note over C,S: Derive Session Key via HKDF
+
+    Note over C,S: Phase 4 - Secure Data Transfer
+    C->>S: Commands (ListFiles, Upload, Download, etc.)
+    S->>C: Responses (encrypted with AES-256-GCM)
+```
+
+### RBAC & Storage Architecture
+
+```mermaid
+graph LR
+    subgraph "Users"
+        Admin["👑 Administrator"]
+        Standard["👤 Standard"]
+        Guest["👁️ Guest"]
+    end
+
+    subgraph "Permissions"
+        R["READ"]
+        W["WRITE"]
+        D["DELETE"]
+    end
+
+    subgraph "Storage (ServerStorage/)"
+        AdminDir["admin/ (Private)"]
+        BobDir["bob/ (Private)"]
+        Shared["shared/ (Global)"]
+    end
+
+    Admin --> R & W & D
+    Standard --> R & W
+    Guest --> R
+
+    R -->|"List & Download"| AdminDir
+    R -->|"List & Download"| Shared
+    W -->|"Upload & Create Dir"| Shared
+    W -->|"Upload & Create Dir"| AdminDir
+    D -->|"Delete Files/Dirs"| AdminDir
+    D -->|"Delete Files/Dirs"| Shared
+```
+
+## 4. Key Features
 
 ### 🛡️ Core Security & Privacy
 *   **Quantum-Safe Security**: Kyber512 for key exchange + Dilithium2 for authentication.
@@ -45,7 +159,13 @@ Traditional secure file transfer protocols (like SFTP/SCP) rely on classical cry
     *   **Guest**: Read-only access.
 *   **Directory Isolation**: Each user gets a private, encrypted storage vault.
 
-## 4. Quick Start (Windows)
+### 📂 Shared Folders
+*   **Global Shared Directory**: A `shared/` folder visible to all authenticated users.
+*   **Collaborative Storage**: Admin and Standard users can upload files and create subdirectories in `shared/`.
+*   **Guest Read Access**: Guest users can browse and download from the shared folder but cannot modify it.
+*   **UI Indicators**: Shared folder displays with a distinct icon and "(Shared)" label.
+
+## 5. Quick Start (Windows)
 The easiest way to run the application is using the included batch script:
 
 1.  **Double-click `start_q_sftp.bat`** in the project root.
@@ -58,7 +178,7 @@ The easiest way to run the application is using the included batch script:
     *   **Host**: `127.0.0.1`
     *   **Port**: `8888`
 
-## 5. Manual Setup & Usage
+## 6. Manual Setup & Usage
 
 ### Prerequisites
 *   Python 3.8+
@@ -93,7 +213,7 @@ python Codes/WebApp/app.py
 **3. Access the Interface:**
 Open your browser and navigate to: `http://127.0.0.1:5000`
 
-## 6. requirements.txt
+## 7. requirements.txt
 Essential packages required to run the system:
 ```txt
 flask
@@ -107,13 +227,14 @@ PyPDF2>=3.0.0       # For PDF Metadata Stripping
 python-docx>=1.1.0  # For Word Doc Metadata Stripping
 ```
 
-## 7. Project Structure
+## 8. Project Structure
 *   `Codes/Handshake/`: Core PQC protocol server & client logic.
 *   `Codes/WebApp/`: Flask application, templates, and static assets.
-*   `Codes/Data/`: Storage for Hash Registry and User Database.
-*   `ServerStorage/`: Root directory for secure encrypted file storage.
+*   `Codes/CA/`: Certificate Authority tools for generating and signing certificates.
+*   `Codes/Data/`: Storage for Hash Registry and Activity Logs.
+*   `ServerStorage/`: Root directory for secure per-user file storage + global shared directory.
 
-## 8. User Management
+## 9. User Management
 The system includes tools to manage users and demonstrate RBAC.
 
 ### Create a New User
