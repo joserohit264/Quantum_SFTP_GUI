@@ -508,6 +508,279 @@ def download_file():
 
 # Helper for download
 from flask import send_file as flask_send_file
+from transfer_manager import transfer_manager
+
+# ═══════════════════════════════════════════════════════════════════
+#  CHUNKED RESUMABLE UPLOAD
+# ═══════════════════════════════════════════════════════════════════
+
+@app.route('/api/upload/init', methods=['POST'])
+def upload_init():
+    """Initialize or resume a chunked upload session."""
+    if not CLIENT_STATE["connected"]:
+        return jsonify({"error": "Not connected"}), 400
+
+    can_write, error_msg = check_write_permission()
+    if not can_write:
+        return jsonify({"error": error_msg}), 403
+
+    data = request.json
+    filename = data.get('filename')
+    total_size = data.get('total_size', 0)
+    file_hash = data.get('file_hash', '')
+    username = session.get('username', 'unknown')
+    remote_path = CLIENT_STATE["remote_path"]
+
+    # Clean up stale transfers
+    transfer_manager.cleanup_stale()
+
+    result = transfer_manager.init_transfer(
+        filename=filename,
+        total_size=total_size,
+        file_hash=file_hash,
+        username=username,
+        remote_path=remote_path,
+        direction="upload"
+    )
+
+    return jsonify(result)
+
+
+@app.route('/api/upload/chunk', methods=['POST'])
+def upload_chunk():
+    """Upload a single chunk of a file."""
+    if not CLIENT_STATE["connected"]:
+        return jsonify({"error": "Not connected"}), 400
+
+    transfer_id = request.form.get('transfer_id')
+    offset = int(request.form.get('offset', 0))
+    is_final = request.form.get('is_final', 'false') == 'true'
+
+    transfer = transfer_manager.get_transfer(transfer_id)
+    if not transfer:
+        return jsonify({"error": "Invalid transfer ID"}), 400
+
+    chunk_data = request.files.get('chunk')
+    if not chunk_data:
+        return jsonify({"error": "No chunk data"}), 400
+
+    try:
+        chunk_bytes = chunk_data.read()
+
+        # Encrypt the chunk
+        nonce, ciphertext = utils.encrypt_data(CLIENT_STATE["session_key"], chunk_bytes)
+
+        # Send to handshake server
+        chunk_msg = {
+            "Type": "ChunkUpload",
+            "Filename": transfer["filename"],
+            "Path": transfer["remote_path"],
+            "Offset": offset,
+            "TotalSize": transfer["total_size"],
+            "IsFinal": is_final,
+            "Content": base64.b64encode(ciphertext).decode('utf-8'),
+            "Nonce": base64.b64encode(nonce).decode('utf-8')
+        }
+
+        s = CLIENT_STATE["socket"]
+        send_message(s, chunk_msg)
+        ack = receive_message(s)
+
+        if ack.get("Status") == "Success":
+            new_offset = ack.get("BytesReceived", offset + len(chunk_bytes))
+            transfer_manager.update_progress(transfer_id, new_offset)
+
+            return jsonify({
+                "success": True,
+                "bytes_transferred": new_offset,
+                "complete": ack.get("Complete", False)
+            })
+        else:
+            return jsonify({"error": ack.get("Message", "Chunk upload failed")}), 500
+
+    except Exception as e:
+        logger.error(f"Chunk upload error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/upload/complete', methods=['POST'])
+def upload_complete():
+    """Finalize a chunked upload — register hash and log activity."""
+    if not CLIENT_STATE["connected"]:
+        return jsonify({"error": "Not connected"}), 400
+
+    data = request.json
+    transfer_id = data.get('transfer_id')
+
+    transfer = transfer_manager.get_transfer(transfer_id)
+    if not transfer:
+        return jsonify({"error": "Invalid transfer ID"}), 400
+
+    try:
+        from hash_verifier import register_file_hash
+
+        username = transfer["username"]
+        filename = transfer["filename"]
+        remote_path = transfer["remote_path"]
+        file_hash = transfer.get("file_hash", "")
+
+        # Construct server storage path
+        is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
+        if is_shared:
+            server_storage_path = os.path.join(
+                os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                remote_path, filename
+            )
+        else:
+            server_storage_path = os.path.join(
+                os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                username, remote_path, filename
+            )
+        server_storage_path = os.path.normpath(server_storage_path)
+
+        # Register hash
+        if file_hash:
+            try:
+                file_id = register_file_hash(
+                    filepath=server_storage_path,
+                    hash_value=file_hash,
+                    username=username,
+                    filename=filename,
+                    file_size=transfer["total_size"],
+                    algorithm='blake2b'
+                )
+                logger.info(f"✓ Registered chunked upload hash: {file_id}")
+            except Exception as e:
+                logger.warning(f"Failed to register hash: {e}")
+
+        # Log upload
+        activity_logger.log_file_upload(
+            username, filename, request.remote_addr
+        )
+
+        transfer_manager.complete_transfer(transfer_id)
+
+        return jsonify({
+            "success": True,
+            "filename": filename,
+            "message": "Upload complete"
+        })
+
+    except Exception as e:
+        transfer_manager.fail_transfer(transfer_id, str(e))
+        return jsonify({"error": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  CHUNKED RESUMABLE DOWNLOAD
+# ═══════════════════════════════════════════════════════════════════
+
+@app.route('/api/download/init', methods=['POST'])
+def download_init():
+    """Initialize or resume a chunked download session."""
+    if not CLIENT_STATE["connected"]:
+        return jsonify({"error": "Not connected"}), 400
+
+    data = request.json
+    filename = data.get('filename')
+    username = session.get('username', 'unknown')
+    remote_path = CLIENT_STATE["remote_path"]
+
+    # Clean up stale transfers
+    transfer_manager.cleanup_stale()
+
+    # Get file size from server by requesting a zero-size chunk
+    try:
+        s = CLIENT_STATE["socket"]
+        send_message(s, {
+            "Type": "ChunkDownload",
+            "Filename": filename,
+            "Path": remote_path,
+            "Offset": 0,
+            "ChunkSize": 0  # Just get metadata
+        })
+        res = receive_message(s)
+
+        if res.get("Type") == "Error":
+            return jsonify({"error": res.get("Message")}), 404
+
+        total_size = res.get("TotalSize", 0)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    result = transfer_manager.init_transfer(
+        filename=filename,
+        total_size=total_size,
+        file_hash="",
+        username=username,
+        remote_path=remote_path,
+        direction="download"
+    )
+
+    return jsonify(result)
+
+
+@app.route('/api/download/chunk', methods=['POST'])
+def download_chunk():
+    """Download a single chunk of a file."""
+    if not CLIENT_STATE["connected"]:
+        return jsonify({"error": "Not connected"}), 400
+
+    data = request.json
+    transfer_id = data.get('transfer_id')
+    offset = data.get('offset', 0)
+
+    transfer = transfer_manager.get_transfer(transfer_id)
+    if not transfer:
+        return jsonify({"error": "Invalid transfer ID"}), 400
+
+    try:
+        s = CLIENT_STATE["socket"]
+        send_message(s, {
+            "Type": "ChunkDownload",
+            "Filename": transfer["filename"],
+            "Path": transfer["remote_path"],
+            "Offset": offset,
+            "ChunkSize": transfer["chunk_size"]
+        })
+
+        res = receive_message(s)
+
+        if res.get("Type") == "Error":
+            return jsonify({"error": res.get("Message")}), 404
+
+        if res.get("Type") == "ChunkData":
+            # Decrypt
+            content = base64.b64decode(res["Content"])
+            nonce = base64.b64decode(res["Nonce"])
+            plaintext = utils.decrypt_data(CLIENT_STATE["session_key"], nonce, content)
+
+            new_offset = offset + len(plaintext)
+            transfer_manager.update_progress(transfer_id, new_offset)
+
+            is_final = res.get("IsFinal", False)
+            if is_final:
+                transfer_manager.complete_transfer(transfer_id)
+                activity_logger.log_file_download(
+                    transfer["username"],
+                    transfer["filename"],
+                    request.remote_addr
+                )
+
+            return jsonify({
+                "success": True,
+                "content": base64.b64encode(plaintext).decode('utf-8'),
+                "offset": offset,
+                "bytes_transferred": new_offset,
+                "total_size": res.get("TotalSize", transfer["total_size"]),
+                "is_final": is_final
+            })
+        else:
+            return jsonify({"error": "Unexpected response"}), 500
+
+    except Exception as e:
+        logger.error(f"Chunk download error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():

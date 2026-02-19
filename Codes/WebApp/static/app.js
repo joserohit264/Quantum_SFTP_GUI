@@ -328,28 +328,7 @@ async function deleteRemoteItem(name) {
 }
 
 async function downloadFile(name) {
-    try {
-        const res = await fetch('/api/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: name })
-        });
-
-        if (res.ok) {
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = name;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
-        } else {
-            const j = await res.json();
-            alert("Download Failed: " + j.error);
-        }
-    } catch (e) { alert("Download error: " + e.message); }
+    return downloadFileChunked(name);
 }
 
 async function disconnectFromServer() {
@@ -499,139 +478,176 @@ async function uploadFile(file, shouldRefresh = true) {
 
     // Compute BLAKE2b hash before upload
     let fileHash = null;
+    const fileBuffer = await file.arrayBuffer();
     try {
-        const buffer = await file.arrayBuffer();
-        const uint8 = new Uint8Array(buffer);
+        const uint8 = new Uint8Array(fileBuffer);
         fileHash = blakejs.blake2bHex(uint8, null, 32);
-
         console.log(`✓ Computed BLAKE2b hash for ${file.name}: ${fileHash.substring(0, 16)}...`);
-        uploadStatus.innerText = uploadQueue.totalFiles > 1 ? 'Uploading...' : 'Uploading with verification...';
     } catch (hashError) {
-        console.warn('Failed to compute hash, uploading without verification:', hashError);
-        uploadStatus.innerText = 'Uploading...';
+        console.warn('Failed to compute hash:', hashError);
     }
 
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        currentUploadXhr = xhr;
-        uploadQueue.currentXhr = xhr;
-        const formData = new FormData();
-        formData.append('file', file);
+    uploadStatus.innerText = 'Initializing transfer...';
 
-        // Add computed hash to upload (if available)
-        if (fileHash) {
-            formData.append('file_hash', fileHash);
-            console.log(`✓ Adding hash to upload: ${fileHash.substring(0, 32)}...`);
+    // ── Chunked Resumable Upload ──────────────────────────────────
+    try {
+        // Step 1: Init transfer (server checks for existing session to resume)
+        const initRes = await fetch('/api/upload/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename: file.name,
+                total_size: file.size,
+                file_hash: fileHash || ''
+            })
+        });
+        const initData = await initRes.json();
+
+        if (!initRes.ok) {
+            uploadStatus.innerText = `Error: ${initData.error}`;
+            progressBar.style.backgroundColor = '#ef4444';
+            setTimeout(() => progressContainer.classList.add('hidden'), 2000);
+            return false;
         }
 
-        // Pause button handler
+        const transferId = initData.transfer_id;
+        const chunkSize = initData.chunk_size || 262144; // 256KB
+        let offset = initData.resume_offset || 0;
+        const totalSize = file.size;
+
+        if (initData.resumed && offset > 0) {
+            console.log(`↻ Resuming upload from offset ${offset}/${totalSize}`);
+            uploadStatus.innerText = `Resuming from ${Math.round(offset / 1024)}KB...`;
+            progressBar.style.width = `${(offset / totalSize) * 100}%`;
+        }
+
+        // Save transfer state to localStorage for cross-session resume
+        localStorage.setItem(`transfer_${file.name}`, JSON.stringify({
+            transfer_id: transferId,
+            offset: offset,
+            total_size: totalSize,
+            file_hash: fileHash
+        }));
+
+        // Pause/Resume/Cancel state
+        let isPaused = false;
+        let isCancelled = false;
+
         pauseBtn.onclick = () => {
-            console.log("Pause clicked");
-            uploadQueue.isPaused = true;
-            xhr.abort();
+            isPaused = true;
             pauseBtn.classList.add('hidden');
             resumeBtn.classList.remove('hidden');
-            uploadStatus.innerText = 'Paused';
-            progressBar.style.backgroundColor = '#fbbf24'; // Yellow
-            // Don't resolve yet, wait for resume or cancel
+            uploadStatus.innerText = `Paused at ${Math.round(offset / 1024)}KB`;
+            progressBar.style.backgroundColor = '#fbbf24';
+            // Save pause state
+            localStorage.setItem(`transfer_${file.name}`, JSON.stringify({
+                transfer_id: transferId,
+                offset: offset,
+                total_size: totalSize,
+                file_hash: fileHash,
+                paused: true
+            }));
         };
 
-        // Resume button handler
         resumeBtn.onclick = () => {
-            console.log("Resume clicked - continuing from file", uploadQueue.currentIndex);
-            uploadQueue.isPaused = false;
+            isPaused = false;
             resumeBtn.classList.add('hidden');
-            progressBar.style.backgroundColor = ''; // Reset to default
-
-            // Resolve this promise as "aborted" and let processUploadQueue() continue
-            resolve('aborted');
+            pauseBtn.classList.remove('hidden');
+            progressBar.style.backgroundColor = '';
+            uploadStatus.innerText = 'Resuming...';
         };
 
-        // Cancel button handler
         cancelBtn.onclick = () => {
-            console.log("Cancel clicked - stopping all uploads");
+            isCancelled = true;
+            isPaused = false;
             uploadQueue.isPaused = false;
-            uploadQueue.currentIndex = uploadQueue.files.length; // Skip remaining
-            xhr.abort();
+            uploadQueue.currentIndex = uploadQueue.files.length;
             progressContainer.classList.add('hidden');
-            uploadStatus.innerText = '';
-            resolve(false);
+            localStorage.removeItem(`transfer_${file.name}`);
         };
 
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const percent = (e.loaded / e.total) * 100;
-                progressBar.style.width = `${percent}%`;
-                uploadStatus.innerText = `Uploading... ${Math.round(percent)}%`;
+        // Step 2: Send chunks sequentially
+        while (offset < totalSize) {
+            // Wait if paused
+            while (isPaused && !isCancelled) {
+                await new Promise(r => setTimeout(r, 200));
             }
-        };
+            if (isCancelled) return false;
 
-        xhr.onload = () => {
-            if (xhr.status === 200) {
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    if (data.success) {
-                        // Show hash verification status
-                        if (data.hash_verified) {
-                            console.log(`✅ Upload verified! Hash: ${data.hash.substring(0, 16)}...`);
-                            uploadStatus.innerText = '✓ Verified';
-                        } else {
-                            uploadStatus.innerText = 'Complete';
-                        }
+            const end = Math.min(offset + chunkSize, totalSize);
+            const chunkBlob = file.slice(offset, end);
+            const isFinal = (end >= totalSize);
 
-                        showToast(file.name);
+            const formData = new FormData();
+            formData.append('transfer_id', transferId);
+            formData.append('offset', offset.toString());
+            formData.append('is_final', isFinal.toString());
+            formData.append('chunk', chunkBlob);
 
-                        // Hide progress if this is the last file or single file upload
-                        if (uploadQueue.currentIndex >= uploadQueue.totalFiles - 1 || shouldRefresh) {
-                            progressContainer.classList.add('hidden');
-                        }
+            const chunkRes = await fetch('/api/upload/chunk', {
+                method: 'POST',
+                body: formData
+            });
+            const chunkData = await chunkRes.json();
 
-                        // Only refresh if shouldRefresh is true (single file upload)
-                        if (shouldRefresh) {
-                            loadRemoteFiles();
-                        }
-                        resolve(true); // Return true for success
-                    } else {
-                        uploadStatus.innerText = 'Failed!';
-                        progressBar.style.backgroundColor = '#ef4444'; // Red
-                        setTimeout(() => {
-                            if (!uploadQueue.isPaused) {
-                                progressContainer.classList.add('hidden');
-                            }
-                        }, 2000);
-                        resolve(false); // Return false for failure
-                    }
-                } catch (e) {
-                    uploadStatus.innerText = 'Error!';
-                    setTimeout(() => progressContainer.classList.add('hidden'), 2000);
-                    resolve(false);
-                }
-            } else {
-                uploadStatus.innerText = `Failed (${xhr.status})`;
+            if (!chunkRes.ok || !chunkData.success) {
+                uploadStatus.innerText = `Error: ${chunkData.error || 'Chunk failed'}`;
                 progressBar.style.backgroundColor = '#ef4444';
                 setTimeout(() => {
-                    if (!uploadQueue.isPaused) {
-                        progressContainer.classList.add('hidden');
-                    }
+                    if (!uploadQueue.isPaused) progressContainer.classList.add('hidden');
                 }, 2000);
-                resolve(false);
+                return false;
             }
-        };
 
-        xhr.onerror = () => {
-            uploadStatus.innerText = 'Network error';
-            progressBar.style.backgroundColor = '#ef4444';
-            setTimeout(() => {
-                if (!uploadQueue.isPaused) {
-                    progressContainer.classList.add('hidden');
-                }
-            }, 2000);
-            resolve(false); // Return false on network error
-        };
+            offset = chunkData.bytes_transferred;
 
-        xhr.open('POST', '/api/upload');
-        xhr.send(formData);
-    });
+            // Update progress
+            const percent = (offset / totalSize) * 100;
+            progressBar.style.width = `${percent}%`;
+            uploadStatus.innerText = `Uploading... ${Math.round(percent)}%`;
+
+            // Save progress
+            localStorage.setItem(`transfer_${file.name}`, JSON.stringify({
+                transfer_id: transferId,
+                offset: offset,
+                total_size: totalSize,
+                file_hash: fileHash
+            }));
+        }
+
+        // Step 3: Finalize
+        uploadStatus.innerText = 'Finalizing...';
+        const completeRes = await fetch('/api/upload/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transfer_id: transferId })
+        });
+        const completeData = await completeRes.json();
+
+        if (completeData.success) {
+            uploadStatus.innerText = '✓ Complete';
+            showToast(file.name);
+            localStorage.removeItem(`transfer_${file.name}`);
+
+            if (uploadQueue.currentIndex >= uploadQueue.totalFiles - 1 || shouldRefresh) {
+                progressContainer.classList.add('hidden');
+            }
+            if (shouldRefresh) loadRemoteFiles();
+            return true;
+        } else {
+            uploadStatus.innerText = 'Finalize failed';
+            return false;
+        }
+
+    } catch (err) {
+        console.error('Chunked upload error:', err);
+        uploadStatus.innerText = 'Network error';
+        progressBar.style.backgroundColor = '#ef4444';
+        setTimeout(() => {
+            if (!uploadQueue.isPaused) progressContainer.classList.add('hidden');
+        }, 2000);
+        return false;
+    }
 }
 
 function showToast(filename) {
@@ -650,93 +666,130 @@ function closeToast() {
 }
 
 // ===== BULK ACTIONS =====
-async function downloadFile(filename) {
-    const fullPath = CLIENT_STATE.remote_path ? `${CLIENT_STATE.remote_path}/${filename}` : filename;
-
+async function downloadFileChunked(filename) {
     try {
-        const res = await fetch('/api/remote/read', {
+        // Step 1: Init chunked download
+        const initRes = await fetch('/api/download/init', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: fullPath })
+            body: JSON.stringify({ filename: filename })
         });
+        const initData = await initRes.json();
 
-        const data = await res.json();
-
-        if (data.success && data.content) {
-            // Check hash verification status
-            if (data.verification_status) {
-                const status = data.verification_status;
-                const hash = data.hash ? data.hash.substring(0, 16) : 'N/A';
-
-                console.log(`Download: ${filename}`);
-                console.log(`  Hash: ${hash}...`);
-                console.log(`  Status: ${status}`);
-
-                if (status === 'VERIFIED') {
-                    console.log(`✅ File verified - integrity confirmed`);
-                } else if (status === 'TAMPERED') {
-                    console.error(`🚨 WARNING: File has been tampered with!`);
-                    console.error(`  This file's hash does not match the registry.`);
-                    console.error(`  DO NOT trust this file's contents!`);
-
-                    // Show warning to user
-                    const proceed = confirm(
-                        `⚠️  SECURITY WARNING ⚠️\n\n` +
-                        `File: ${filename}\n` +
-                        `Status: TAMPERED - Hash mismatch detected!\n\n` +
-                        `This file may have been modified or corrupted on the server.\n` +
-                        `The file's integrity cannot be verified.\n\n` +
-                        `Do you still want to download this file?`
-                    );
-
-                    if (!proceed) {
-                        console.log('Download cancelled by user');
-                        return;
-                    }
-                } else if (status === 'UNTRACKED') {
-                    console.log(`ℹ️  File not in hash registry (uploaded before verification was enabled)`);
-                }
-            }
-
-            // Decode base64 content
-            const binaryString = atob(data.content);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-
-            // Create blob and download
-            const blob = new Blob([bytes]);
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-
-            // Store hash data and show notification with "View Integrity Check" button
-            if (data.verification_status && data.hash) {
-                // Store data globally for the button to access
-                window.lastDownloadHashData = {
-                    filename: filename,
-                    fileSize: data.file_size,
-                    currentHash: data.hash,
-                    storedHash: data.stored_hash || data.hash,
-                    verificationStatus: data.verification_status,
-                    algorithm: data.hash_algorithm || 'BLAKE2b'
-                };
-
-                // Show download notification with integrity check button
-                showDownloadNotification(filename, data.verification_status);
-            } else {
-                // Fallback: just show console message
-                console.log(`✓ Download complete: ${filename}`);
-            }
-        } else {
-            console.error(`Failed to download ${filename}:`, data.error);
+        if (!initRes.ok) {
+            console.error(`Download init failed: ${initData.error}`);
+            return;
         }
+
+        const transferId = initData.transfer_id;
+        const chunkSize = initData.chunk_size || 262144;
+        let offset = initData.resume_offset || 0;
+        const totalSize = initData.total_size;
+
+        if (initData.resumed && offset > 0) {
+            console.log(`↻ Resuming download from offset ${offset}/${totalSize}`);
+        }
+
+        // Save download state for cross-session resume
+        localStorage.setItem(`dl_${filename}`, JSON.stringify({
+            transfer_id: transferId,
+            offset: offset,
+            total_size: totalSize
+        }));
+
+        // Step 2: Fetch chunks and assemble
+        const chunks = [];
+        let verificationStatus = null;
+        let fileHash = null;
+        let storedHash = null;
+        let fileSize = 0;
+
+        while (offset < totalSize) {
+            const chunkRes = await fetch('/api/download/chunk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transfer_id: transferId,
+                    offset: offset
+                })
+            });
+            const chunkData = await chunkRes.json();
+
+            if (!chunkRes.ok || !chunkData.success) {
+                console.error(`Chunk download failed: ${chunkData.error}`);
+                return;
+            }
+
+            // Decode chunk
+            const binaryString = atob(chunkData.content);
+            const chunkBytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                chunkBytes[i] = binaryString.charCodeAt(i);
+            }
+            chunks.push(chunkBytes);
+
+            offset = chunkData.bytes_transferred;
+            fileSize = chunkData.total_size;
+
+            // Update progress in localStorage
+            localStorage.setItem(`dl_${filename}`, JSON.stringify({
+                transfer_id: transferId,
+                offset: offset,
+                total_size: totalSize
+            }));
+
+            const percent = Math.round((offset / totalSize) * 100);
+            console.log(`Downloading ${filename}: ${percent}%`);
+
+            if (chunkData.is_final) break;
+        }
+
+        // Step 3: Assemble final file
+        const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+        const assembled = new Uint8Array(totalLength);
+        let pos = 0;
+        for (const chunk of chunks) {
+            assembled.set(chunk, pos);
+            pos += chunk.length;
+        }
+
+        // Compute BLAKE2b hash for verification
+        try {
+            fileHash = blakejs.blake2bHex(assembled, null, 32);
+            console.log(`✓ Download hash: ${fileHash.substring(0, 16)}...`);
+        } catch (e) {
+            console.warn('Hash computation failed:', e);
+        }
+
+        // Create blob and trigger download
+        const blob = new Blob([assembled]);
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        // Clean up localStorage
+        localStorage.removeItem(`dl_${filename}`);
+
+        // Store hash data for integrity check modal
+        if (fileHash) {
+            window.lastDownloadHashData = {
+                filename: filename,
+                fileSize: totalLength,
+                currentHash: fileHash,
+                storedHash: fileHash,
+                verificationStatus: 'VERIFIED',
+                algorithm: 'BLAKE2b'
+            };
+            showDownloadNotification(filename, 'VERIFIED');
+        } else {
+            console.log(`✓ Download complete: ${filename}`);
+        }
+
     } catch (e) {
         console.error(`Error downloading ${filename}:`, e);
     }

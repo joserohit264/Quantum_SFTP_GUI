@@ -561,6 +561,125 @@ def handle_client(conn, addr, server_state):
                 else:
                     send_message(conn, {"Type": "ActionAck", "Status": "Error", "Message": "Invalid Path"})
 
+            elif msg_type == "ChunkUpload":
+                # ── Resumable chunked upload ───────────────────────
+                if not auth_db.check_permission(user.username, 'WRITE'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: WRITE access required."})
+                    continue
+
+                filename = msg.get('Filename')
+                path = msg.get("Path", "")
+                offset = msg.get("Offset", 0)
+                total_size = msg.get("TotalSize", 0)
+                is_final = msg.get("IsFinal", False)
+                content_b64 = msg["Content"]
+                nonce_b64 = msg["Nonce"]
+
+                print(f"[RX] ChunkUpload: {filename} offset={offset} final={is_final}")
+
+                try:
+                    content = base64.b64decode(content_b64)
+                    nonce = base64.b64decode(nonce_b64)
+                    plaintext = utils.decrypt_data(server_state.session_key, nonce, content)
+
+                    # Security check on first chunk only
+                    if offset == 0:
+                        is_valid, reason = FileValidator.validate(filename, plaintext)
+                        if not is_valid:
+                            print(f"[Security] MALICIOUS FILE BLOCKED: {filename} Reason: {reason}")
+                            send_message(conn, {"Type": "ChunkAck", "Status": "Error", "Message": f"Security: {reason}"})
+                            continue
+
+                    # Determine target directory
+                    is_shared_path = (path == "shared" or path.startswith("shared/"))
+                    if is_shared_path:
+                        relative = path[len("shared"):].lstrip("/")
+                        target_dir = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative))
+                        if not target_dir.startswith(SHARED_STORAGE_ROOT): target_dir = SHARED_STORAGE_ROOT
+                    else:
+                        target_dir = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path))
+                        if not target_dir.startswith(USER_STORAGE_ROOT): target_dir = USER_STORAGE_ROOT
+
+                    if not os.path.exists(target_dir):
+                        os.makedirs(target_dir)
+
+                    part_path = os.path.join(target_dir, filename + ".part")
+                    final_path = os.path.join(target_dir, filename)
+
+                    # Write chunk at offset
+                    mode = 'r+b' if os.path.exists(part_path) else 'wb'
+                    with open(part_path, mode) as f:
+                        f.seek(offset)
+                        f.write(plaintext)
+
+                    new_offset = offset + len(plaintext)
+
+                    # If final chunk, rename .part to final file
+                    if is_final:
+                        if os.path.exists(final_path):
+                            os.remove(final_path)
+                        os.rename(part_path, final_path)
+                        print(f"[TX] Chunked file complete: {final_path}")
+
+                    send_message(conn, {
+                        "Type": "ChunkAck",
+                        "Status": "Success",
+                        "BytesReceived": new_offset,
+                        "Complete": is_final
+                    })
+
+                except Exception as e:
+                    print(f"[Error] ChunkUpload failed: {e}")
+                    send_message(conn, {"Type": "ChunkAck", "Status": "Error", "Message": str(e)})
+
+            elif msg_type == "ChunkDownload":
+                # ── Resumable chunked download ─────────────────────
+                if not auth_db.check_permission(user.username, 'READ'):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied: READ access required."})
+                    continue
+
+                filename = msg.get('Filename')
+                path = msg.get("Path", "")
+                offset = msg.get("Offset", 0)
+                chunk_size = msg.get("ChunkSize", 256 * 1024)
+
+                print(f"[RX] ChunkDownload: {filename} offset={offset}")
+
+                is_shared_path = (path == "shared" or path.startswith("shared/"))
+                if is_shared_path:
+                    relative = path[len("shared"):].lstrip("/")
+                    target_path = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative, filename))
+                    allowed_root = SHARED_STORAGE_ROOT
+                else:
+                    target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, filename))
+                    allowed_root = USER_STORAGE_ROOT
+
+                if not target_path.startswith(allowed_root):
+                    send_message(conn, {"Type": "Error", "Message": "Permission Denied"})
+                elif os.path.exists(target_path):
+                    total_size = os.path.getsize(target_path)
+
+                    with open(target_path, 'rb') as f:
+                        f.seek(offset)
+                        chunk_data = f.read(chunk_size)
+
+                    is_final = (offset + len(chunk_data)) >= total_size
+
+                    nonce, ciphertext = utils.encrypt_data(server_state.session_key, chunk_data)
+                    send_message(conn, {
+                        "Type": "ChunkData",
+                        "Filename": filename,
+                        "Content": base64.b64encode(ciphertext).decode('utf-8'),
+                        "Nonce": base64.b64encode(nonce).decode('utf-8'),
+                        "Offset": offset,
+                        "ChunkSize": len(chunk_data),
+                        "TotalSize": total_size,
+                        "IsFinal": is_final
+                    })
+                    print(f"[TX] ChunkData: {filename} offset={offset} size={len(chunk_data)} final={is_final}")
+                else:
+                    send_message(conn, {"Type": "Error", "Message": "File not found"})
+
             elif msg_type == "Disconnect":
                 print("[RX] Disconnect.")
                 break
