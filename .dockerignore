@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Virtual environments
+venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+*.md
+!README.md
+LICENSE
+
+# Tests
+test_*.py
+test_*.md
+inspect_*.py
+
+# Windows scripts
+*.bat

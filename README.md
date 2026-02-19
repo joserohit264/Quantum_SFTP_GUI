@@ -165,7 +165,36 @@ graph LR
 *   **Guest Read Access**: Guest users can browse and download from the shared folder but cannot modify it.
 *   **UI Indicators**: Shared folder displays with a distinct icon and "(Shared)" label.
 
-## 5. Quick Start (Windows)
+## 5. Docker Deployment
+
+> 🐳 **Docker Hub**: [`joserohit264/q-sftp`](https://hub.docker.com/r/joserohit264/q-sftp)
+
+### Pull & Run (Quickest)
+```bash
+docker pull joserohit264/q-sftp:latest
+docker run -d --name q-sftp -p 5000:5000 -p 8888:8888 joserohit264/q-sftp:latest
+```
+Access at `http://localhost:5000` — login: `admin` / `admin`
+
+### Using Docker Compose
+```bash
+docker-compose up -d
+```
+
+### Build from Source
+```bash
+docker build -t joserohit264/q-sftp:latest .
+docker run -d --name q-sftp -p 5000:5000 -p 8888:8888 joserohit264/q-sftp:latest
+```
+
+### Push Updates to Docker Hub
+```bash
+docker login -u joserohit264
+docker build -t joserohit264/q-sftp:latest .
+docker push joserohit264/q-sftp:latest
+```
+
+## 6. Quick Start (Windows)
 The easiest way to run the application is using the included batch script:
 
 1.  **Double-click `start_q_sftp.bat`** in the project root.
@@ -178,7 +207,7 @@ The easiest way to run the application is using the included batch script:
     *   **Host**: `127.0.0.1`
     *   **Port**: `8888`
 
-## 6. Manual Setup & Usage
+## 7. Manual Setup & Usage
 
 ### Prerequisites
 *   Python 3.8+
@@ -213,7 +242,7 @@ python Codes/WebApp/app.py
 **3. Access the Interface:**
 Open your browser and navigate to: `http://127.0.0.1:5000`
 
-## 7. requirements.txt
+## 8. requirements.txt
 Essential packages required to run the system:
 ```txt
 flask
@@ -227,14 +256,14 @@ PyPDF2>=3.0.0       # For PDF Metadata Stripping
 python-docx>=1.1.0  # For Word Doc Metadata Stripping
 ```
 
-## 8. Project Structure
+## 9. Project Structure
 *   `Codes/Handshake/`: Core PQC protocol server & client logic.
 *   `Codes/WebApp/`: Flask application, templates, and static assets.
 *   `Codes/CA/`: Certificate Authority tools for generating and signing certificates.
 *   `Codes/Data/`: Storage for Hash Registry and Activity Logs.
 *   `ServerStorage/`: Root directory for secure per-user file storage + global shared directory.
 
-## 9. User Management
+## 10. User Management
 The system includes tools to manage users and demonstrate RBAC.
 
 ### Create a New User

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  q-sftp:
+    build: .
+    image: joserohit264/q-sftp:latest
+    container_name: q-sftp
+    ports:
+      - "5000:5000" # Flask Web UI
+      - "8888:8888" # PQC Handshake Server
+    volumes:
+      - q-sftp-storage:/app/ServerStorage
+      - q-sftp-data:/app/Codes/Data
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+
+volumes:
+  q-sftp-storage:
+    driver: local
+  q-sftp-data:
+    driver: local
