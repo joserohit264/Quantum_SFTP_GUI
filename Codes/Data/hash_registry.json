@@ -1199,10 +1199,46 @@
       "last_verified": "2026-02-19T12:31:41.990916",
       "verification_status": "VALID",
       "version": 1
+    },
+    "acbde3f5-ed5e-460b-abd2-53aa2bef922c": {
+      "filename": "064165cd-62b9-40cf-8f37-a977111cf379.xlsx",
+      "filepath": "/mnt/c/Users/ADMIN/Desktop/Quantum_SFTP/Q_SFTP/ServerStorage/admin/sample_29/064165cd-62b9-40cf-8f37-a977111cf379.xlsx",
+      "hash_blake2b": "8b111b8ece38c44d63cbc427ae001e6f695b70e56b345b3a228886355bd9288d",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 12165,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-02-19T13:27:26.734927",
+      "last_verified": "2026-02-19T13:27:26.734949",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "5abeac4a-2f7b-4740-a5cc-77244ef2fd02": {
+      "filename": "e9b8bca0-0c80-478f-94d0-fc3a914ff5b2.xlsx",
+      "filepath": "/mnt/c/Users/ADMIN/Desktop/Quantum_SFTP/Q_SFTP/ServerStorage/admin/sample_29/e9b8bca0-0c80-478f-94d0-fc3a914ff5b2.xlsx",
+      "hash_blake2b": "7f49035e690c1e92337b355d5e5d288d203a1b618881797f0c72cd9f800e58de",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 14589,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-02-19T13:27:26.953297",
+      "last_verified": "2026-02-19T13:27:26.953318",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "58a59738-c24a-40e1-b9eb-08bfdf85a3ed": {
+      "filename": "activity_logs_2026-01-28.json",
+      "filepath": "/mnt/c/Users/ADMIN/Desktop/Quantum_SFTP/Q_SFTP/ServerStorage/admin/sample_29/activity_logs_2026-01-28.json",
+      "hash_blake2b": "1956cbc3c1ef4f24c4da91637e3a6194fb5b77fd45589f3aaeef9beaef0e1110",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 5845,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-02-19T13:27:43.145380",
+      "last_verified": "2026-02-19T13:27:43.145401",
+      "verification_status": "VALID",
+      "version": 1
     }
   },
   "metadata": {
-    "total_files": 100,
+    "total_files": 103,
     "last_check": "2026-01-29T17:10:19.809016",
     "corrupted_count": 0,
     "missing_count": 20
