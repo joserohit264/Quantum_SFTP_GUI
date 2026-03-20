@@ -274,7 +274,7 @@ class HashVerifier:
     
     def get_file_hash(self, filepath: str) -> Optional[Dict]:
         """
-        Retrieve hash entry for a file by filepath.
+        Retrieve the latest hash entry for a file by filepath.
         
         Args:
             filepath: Path to file
@@ -283,13 +283,16 @@ class HashVerifier:
             Hash entry dict or None if not found
         """
         registry = self._load_registry()
+        latest_entry = None
         
         for file_id, entry in registry["files"].items():
             if entry["filepath"] == filepath:
                 entry["file_id"] = file_id
-                return entry
+                # Check if this entry is more recent than our current latest_entry
+                if latest_entry is None or entry["upload_timestamp"] > latest_entry["upload_timestamp"]:
+                    latest_entry = entry
         
-        return None
+        return latest_entry
     
     def update_verification_status(self, file_id: str, status: str):
         """
