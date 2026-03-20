@@ -403,12 +403,12 @@ def remote_read():
             is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
             if is_shared:
                 server_storage_path = os.path.join(
-                    os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                    os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
                     remote_path, os.path.basename(file_path)
                 )
             else:
                 server_storage_path = os.path.join(
-                    os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                    os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
                     username, remote_path, os.path.basename(file_path)
                 )
             server_storage_path = os.path.normpath(server_storage_path)
@@ -534,6 +534,7 @@ def upload_init():
     # Clean up stale transfers
     transfer_manager.cleanup_stale()
 
+    logger.info(f"Initializing upload for {filename} (Hash: {file_hash[:16]}...)")
     result = transfer_manager.init_transfer(
         filename=filename,
         total_size=total_size,
@@ -555,11 +556,16 @@ def upload_chunk():
     transfer_id = request.form.get('transfer_id')
     offset = int(request.form.get('offset', 0))
     is_final = request.form.get('is_final', 'false') == 'true'
-
+    file_hash_from_req = request.form.get('file_hash', '')
+ 
     transfer = transfer_manager.get_transfer(transfer_id)
     if not transfer:
+        logger.error(f"[Trace] Transfer ID not found: {transfer_id}")
         return jsonify({"error": "Invalid transfer ID"}), 400
-
+    
+    # Determine hash (prioritize request hash for CLI logging redundancy)
+    curr_hash = file_hash_from_req or transfer.get("file_hash", "")
+ 
     chunk_data = request.files.get('chunk')
     if not chunk_data:
         return jsonify({"error": "No chunk data"}), 400
@@ -574,6 +580,7 @@ def upload_chunk():
         chunk_msg = {
             "Type": "ChunkUpload",
             "Filename": transfer["filename"],
+            "FileHash": curr_hash, # Use the determined hash
             "Path": transfer["remote_path"],
             "Offset": offset,
             "TotalSize": transfer["total_size"],
@@ -628,12 +635,12 @@ def upload_complete():
         is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
         if is_shared:
             server_storage_path = os.path.join(
-                os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
                 remote_path, filename
             )
         else:
             server_storage_path = os.path.join(
-                os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
                 username, remote_path, filename
             )
         server_storage_path = os.path.normpath(server_storage_path)
@@ -727,12 +734,12 @@ def download_init():
     is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
     if is_shared:
         server_storage_path = os.path.join(
-            os.path.dirname(__file__), '..', '..', 'ServerStorage',
+            os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
             remote_path, filename
         )
     else:
         server_storage_path = os.path.join(
-            os.path.dirname(__file__), '..', '..', 'ServerStorage',
+            os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
             username, remote_path, filename
         )
     server_storage_path = os.path.normpath(server_storage_path)
@@ -912,12 +919,12 @@ def upload_file():
             is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
             if is_shared:
                 server_storage_path = os.path.join(
-                    os.path.dirname(__file__), '..', '..', 'ServerStorage',
+                    os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage',
                     remote_path, filename
                 )
             else:
                 server_storage_path = os.path.join(
-                    os.path.dirname(__file__), '..', '..', 'ServerStorage', 
+                    os.path.dirname(__file__), '..', 'Handshake', 'ServerStorage', 
                     username, remote_path, filename
                 )
             server_storage_path = os.path.normpath(server_storage_path)
@@ -1033,8 +1040,8 @@ def create_user_programmatically(username, password, role, cn_name):
         # 5. Register in Client User Manager
         user_manager.add_user(username, password, cn_name, role)
         
-        # 6. Create user storage directory (Codes/../ServerStorage = Q_SFTP/ServerStorage)
-        storage_dir = os.path.join(project_root, '..', 'ServerStorage', username)
+        # 6. Create user storage directory
+        storage_dir = os.path.join(project_root, 'Handshake', 'ServerStorage', username)
         os.makedirs(storage_dir, exist_ok=True)
         
         return True, "User created successfully"

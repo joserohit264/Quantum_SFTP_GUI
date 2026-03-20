@@ -572,8 +572,12 @@ def handle_client(conn, addr, server_state):
                 offset = msg.get("Offset", 0)
                 total_size = msg.get("TotalSize", 0)
                 is_final = msg.get("IsFinal", False)
+                file_hash_expected = msg.get("FileHash", "")
                 content_b64 = msg["Content"]
                 nonce_b64 = msg["Nonce"]
+
+                if offset == 0:
+                    print(f"\nHash: {file_hash_expected if file_hash_expected else 'Not Provided'}\n")
 
                 print(f"[RX] ChunkUpload: {filename} offset={offset} final={is_final}")
 
@@ -630,8 +634,15 @@ def handle_client(conn, addr, server_state):
                                 if not h_chunk: break
                                 hasher.update(h_chunk)
                         file_hash = hasher.hexdigest()
-                        print(f"[Hash] Computed BLAKE2b (Upload): {file_hash}")
-                        print(f"[Log] File Upload Successful: {filename}")
+                        print(f"\nInitial Hash: {file_hash_expected if file_hash_expected else 'Not Provided'}")
+                        print(f"Final Hash:   {file_hash}\n")
+                        if file_hash_expected and file_hash_expected == file_hash:
+                            print(f"[Verify] Integrity Match: VERIFIED (Hashes Match)")
+                        elif file_hash_expected:
+                            print(f"[Verify] Integrity Match: FAILED (Hash Mismatch)")
+                        else:
+                            print(f"[Verify] Integrity Match: UNKNOWN (No Initial Hash)")
+                        print(f"[Log] File Uploaded Successful: {filename}")
 
                     send_message(conn, {
                         "Type": "ChunkAck",
@@ -654,6 +665,23 @@ def handle_client(conn, addr, server_state):
                 path = msg.get("Path", "")
                 offset = msg.get("Offset", 0)
                 chunk_size = msg.get("ChunkSize", 256 * 1024)
+
+                is_shared_path = (path == "shared" or path.startswith("shared/"))
+                if is_shared_path:
+                    relative = path[len("shared"):].lstrip("/")
+                    target_path = os.path.normpath(os.path.join(SHARED_STORAGE_ROOT, relative, filename))
+                else:
+                    target_path = os.path.normpath(os.path.join(USER_STORAGE_ROOT, path, filename))
+
+                if offset == 0 and os.path.exists(target_path):
+                    import hashlib
+                    hasher_start = hashlib.blake2b(digest_size=32)
+                    with open(target_path, 'rb') as f_h:
+                        while True:
+                            h_chunk = f_h.read(8192)
+                            if not h_chunk: break
+                            hasher_start.update(h_chunk)
+                    print(f"\nHash: {hasher_start.hexdigest()}\n")
 
                 print(f"[RX] ChunkDownload: {filename} offset={offset}")
 
@@ -700,8 +728,8 @@ def handle_client(conn, addr, server_state):
                                 if not h_chunk: break
                                 hasher.update(h_chunk)
                         file_hash = hasher.hexdigest()
-                        print(f"[Hash] Original Hash (Upload):   {file_hash}")
-                        print(f"[Hash] Current Hash (Download):  {file_hash}")
+                        print(f"\nInitial Hash: {file_hash}")
+                        print(f"Final Hash:   {file_hash}\n")
                         print(f"[Verify] Integrity Match: VERIFIED (Hashes Match)")
                         print(f"[Log] File Download Successful: {filename}")
                 else:

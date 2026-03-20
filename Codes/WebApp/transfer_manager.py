@@ -69,6 +69,12 @@ class TransferManager:
                 entry["remote_path"] == remote_path and
                 entry["direction"] == direction and
                 entry["status"] == "active"):
+                
+                # Update file_hash if it was empty but is now provided
+                if not entry.get("file_hash") and file_hash:
+                    entry["file_hash"] = file_hash
+                    self._save(data)
+                
                 resume_offset = entry["bytes_transferred"]
                 logger.info(f"Resuming transfer {tid} from offset {resume_offset}")
                 return {

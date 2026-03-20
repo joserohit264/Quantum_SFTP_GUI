@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/blakejs.js"></script>
 </head>
 
 <body data-theme="dark">
@@ -175,7 +176,7 @@
                 <!-- Hash Comparison -->
                 <div class="hash-comparison">
                     <div class="hash-block">
-                        <div class="hash-block-title">Original Hash (Upload)</div>
+                        <div class="hash-block-title" id="hash-label-original">Original Hash (Upload)</div>
                         <div class="hash-block-value" id="hash-original">-</div>
                         <div class="hash-block-label">BLAKE2b</div>
                     </div>
@@ -183,7 +184,7 @@
                     <div class="hash-arrow">→</div>
 
                     <div class="hash-block">
-                        <div class="hash-block-title">Current Hash (Download)</div>
+                        <div class="hash-block-title" id="hash-label-current">Current Hash (Download)</div>
                         <div class="hash-block-value" id="hash-current">-</div>
                         <div class="hash-block-label">BLAKE2b</div>
                     </div>
@@ -206,8 +207,7 @@
         const USER_ROLE = "{{ role }}";
         const USERNAME = "{{ username }}";
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/blakejs@1.2.1/blake2b.min.js"></script>
-    <script src="/static/app.js?v=2.1"></script>
+    <script src="/static/app.js?v=2.4"></script>
 </body>
 
 </html>

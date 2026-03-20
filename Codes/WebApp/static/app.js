@@ -6,6 +6,26 @@ const CLIENT_STATE = {
     inSharedFolder: false
 };
 
+// --- Utils ---
+function uint8ToHex(uint8) {
+    return Array.from(uint8).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function computeBlake2bHex(uint8) {
+    try {
+        if (typeof blakejs !== 'undefined') {
+            if (blakejs.blake2bHex) return blakejs.blake2bHex(uint8, null, 32);
+            if (blakejs.blake2b) return uint8ToHex(blakejs.blake2b(uint8, null, 32));
+        }
+        if (typeof blake2bHex !== 'undefined') return blake2bHex(uint8, null, 32);
+        if (typeof blake2b !== 'undefined') return uint8ToHex(blake2b(uint8, null, 32));
+
+    } catch (e) {
+        console.error("Hash computation error:", e);
+    }
+    return null;
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', () => {
     checkConnectionStatus();
@@ -478,13 +498,12 @@ async function uploadFile(file, shouldRefresh = true) {
 
     // Compute BLAKE2b hash before upload
     let fileHash = null;
-    const fileBuffer = await file.arrayBuffer();
     try {
+        const fileBuffer = await file.arrayBuffer();
         const uint8 = new Uint8Array(fileBuffer);
-        fileHash = blakejs.blake2bHex(uint8, null, 32);
-        console.log(`✓ Computed BLAKE2b hash for ${file.name}: ${fileHash.substring(0, 16)}...`);
+        fileHash = computeBlake2bHex(uint8);
     } catch (hashError) {
-        console.warn('Failed to compute hash:', hashError);
+        console.error('Hash computation failed:', hashError);
     }
 
     uploadStatus.innerText = 'Initializing transfer...';
@@ -582,6 +601,7 @@ async function uploadFile(file, shouldRefresh = true) {
             formData.append('transfer_id', transferId);
             formData.append('offset', offset.toString());
             formData.append('is_final', isFinal.toString());
+            formData.append('file_hash', fileHash || ''); // Send hash with every chunk for redundancy
             formData.append('chunk', chunkBlob);
 
             const chunkRes = await fetch('/api/upload/chunk', {
@@ -694,9 +714,10 @@ function showToast(filename, action = 'upload', hashData = {}) {
             filename: filename,
             fileSize: hashData.fileSize,
             currentHash: hashData.hash,
-            storedHash: hashData.hash,
-            verificationStatus: (hashData.verified || hashData.status === 'VERIFIED') ? 'VERIFIED' : 'UNTRACKED',
-            algorithm: hashData.algorithm || 'BLAKE2b'
+            storedHash: hashData.storedHash || hashData.hash,
+            verificationStatus: hashData.status || ((hashData.verified) ? 'VERIFIED' : 'UNTRACKED'),
+            algorithm: hashData.algorithm || 'BLAKE2b',
+            direction: action
         };
         // We attach the data as a JSON string to the button so it can be parsed when clicked
         const dataStr = encodeURIComponent(JSON.stringify(modalData));
@@ -832,8 +853,7 @@ async function downloadFileChunked(filename) {
 
         // Compute BLAKE2b hash for verification
         try {
-            fileHash = blakejs.blake2bHex(assembled, null, 32);
-            console.log(`✓ Download hash: ${fileHash.substring(0, 16)}...`);
+            fileHash = computeBlake2bHex(assembled);
         } catch (e) {
             console.warn('Hash computation failed:', e);
         }
@@ -949,6 +969,7 @@ function showDownloadNotification(filename, verificationStatus) {
     const hashData = window.lastDownloadHashData || {};
     showToast(filename, 'download', {
         hash: hashData.currentHash || null,
+        storedHash: hashData.storedHash || null,
         algorithm: hashData.algorithm || 'BLAKE2b',
         verified: verificationStatus === 'VERIFIED',
         status: verificationStatus,
@@ -979,6 +1000,17 @@ function showHashVerificationModal(data) {
     const statusIcon = document.getElementById('hash-status-icon');
     const statusTitle = document.getElementById('hash-status-title');
     const statusMessage = document.getElementById('hash-status-message');
+    const labelOriginal = document.getElementById('hash-label-original');
+    const labelCurrent = document.getElementById('hash-label-current');
+
+    // Update labels based on direction
+    if (data.direction === 'upload') {
+        labelOriginal.textContent = 'Initial file hash';
+        labelCurrent.textContent = 'Upload hash';
+    } else {
+        labelOriginal.textContent = 'Original Hash (Upload)';
+        labelCurrent.textContent = 'Current Hash (Download)';
+    }
 
     // Set file info
     document.getElementById('hash-filename').textContent = data.filename;
