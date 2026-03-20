@@ -626,7 +626,12 @@ async function uploadFile(file, shouldRefresh = true) {
 
         if (completeData.success) {
             uploadStatus.innerText = '✓ Complete';
-            showToast(file.name);
+            showToast(file.name, 'upload', {
+                hash: completeData.file_hash || fileHash,
+                algorithm: completeData.hash_algorithm || 'BLAKE2b',
+                verified: completeData.hash_verified || false,
+                fileSize: file.size
+            });
             localStorage.removeItem(`transfer_${file.name}`);
 
             if (uploadQueue.currentIndex >= uploadQueue.totalFiles - 1 || shouldRefresh) {
@@ -650,19 +655,92 @@ async function uploadFile(file, shouldRefresh = true) {
     }
 }
 
-function showToast(filename) {
-    const toast = document.getElementById('upload-complete-toast');
-    document.getElementById('toast-filename').innerText = filename;
-    toast.classList.remove('hidden');
+// ===== TOAST NOTIFICATION SYSTEM =====
+function getToastContainer() {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position:fixed;bottom:20px;left:20px;z-index:9999;display:flex;flex-direction:column-reverse;gap:12px;max-width:420px;';
+        document.body.appendChild(container);
+    }
+    return container;
+}
 
-    // Auto hide after 4s
+function showToast(filename, action = 'upload', hashData = {}) {
+    const container = getToastContainer();
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+
+    const isUpload = action === 'upload';
+    const isDelete = action === 'delete';
+    const icon = isDelete ? 'fa-trash-can' : (isUpload ? 'fa-cloud-arrow-up' : 'fa-cloud-arrow-down');
+    const actionLabel = isDelete ? 'Delete Complete' : (isUpload ? 'Upload Complete' : 'Download Complete');
+    const isVerified = (hashData.verified || hashData.status === 'VERIFIED');
+    const iconColor = isDelete ? 'var(--danger)' : 'var(--success)';
+    toast.style.borderLeftColor = isDelete ? 'var(--danger)' : (isVerified ? 'var(--success)' : '#fbbf24');
+
+    // Build file size line
+    let sizeLine = '';
+    if (hashData.fileSize) {
+        sizeLine = `<span style="color:var(--text-muted);font-size:0.78rem;"> · ${formatBytes(hashData.fileSize)}</span>`;
+    }
+
+    // Hash Show More Button
+    let showMoreBtn = '';
+    if (hashData.hash) {
+        // Prepare data for the modal
+        const modalData = {
+            filename: filename,
+            fileSize: hashData.fileSize,
+            currentHash: hashData.hash,
+            storedHash: hashData.hash,
+            verificationStatus: (hashData.verified || hashData.status === 'VERIFIED') ? 'VERIFIED' : 'UNTRACKED',
+            algorithm: hashData.algorithm || 'BLAKE2b'
+        };
+        // We attach the data as a JSON string to the button so it can be parsed when clicked
+        const dataStr = encodeURIComponent(JSON.stringify(modalData));
+        showMoreBtn = `
+            <div style="margin-top: 8px;">
+                <button onclick="openToastHashModal('${dataStr}', this)" style="
+                    background: transparent;
+                    border: 1px solid var(--border-color);
+                    color: var(--accent);
+                    padding: 0.3rem 0.6rem;
+                    border-radius: 4px;
+                    font-size: 0.75rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='rgba(59, 130, 246, 0.1)'" onmouseout="this.style.background='transparent'">
+                    Show More 🔍
+                </button>
+            </div>
+        `;
+    }
+
+    toast.innerHTML = `
+        <div style="color:${iconColor};font-size:1.2rem;margin-top:2px;"><i class="fa-solid ${icon}"></i></div>
+        <div class="toast-content" style="flex:1;">
+            <h4>${actionLabel}</h4>
+            <p style="font-size:0.85rem;color:var(--text-secondary);">${filename}${sizeLine}</p>
+            ${showMoreBtn}
+        </div>
+        <button class="toast-close" onclick="this.closest('.toast-notification').remove()">✕</button>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-dismiss after 6 seconds
     setTimeout(() => {
-        toast.classList.add('hidden');
-    }, 4000);
+        toast.style.transition = 'opacity 0.4s, transform 0.4s';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-100%)';
+        setTimeout(() => toast.remove(), 400);
+    }, 6000);
 }
 
 function closeToast() {
-    document.getElementById('upload-complete-toast').classList.add('hidden');
+    // Legacy compat — no-op
 }
 
 // ===== BULK ACTIONS =====
@@ -685,6 +763,7 @@ async function downloadFileChunked(filename) {
         const chunkSize = initData.chunk_size || 262144;
         let offset = initData.resume_offset || 0;
         const totalSize = initData.total_size;
+        const originalHash = initData.original_hash || null;
 
         if (initData.resumed && offset > 0) {
             console.log(`↻ Resuming download from offset ${offset}/${totalSize}`);
@@ -699,9 +778,7 @@ async function downloadFileChunked(filename) {
 
         // Step 2: Fetch chunks and assemble
         const chunks = [];
-        let verificationStatus = null;
         let fileHash = null;
-        let storedHash = null;
         let fileSize = 0;
 
         while (offset < totalSize) {
@@ -775,20 +852,26 @@ async function downloadFileChunked(filename) {
         // Clean up localStorage
         localStorage.removeItem(`dl_${filename}`);
 
-        // Store hash data for integrity check modal
-        if (fileHash) {
-            window.lastDownloadHashData = {
-                filename: filename,
-                fileSize: totalLength,
-                currentHash: fileHash,
-                storedHash: fileHash,
-                verificationStatus: 'VERIFIED',
-                algorithm: 'BLAKE2b'
-            };
-            showDownloadNotification(filename, 'VERIFIED');
-        } else {
-            console.log(`✓ Download complete: ${filename}`);
+        let finalStatus = 'UNTRACKED';
+        if (fileHash && originalHash) {
+            // Constant-time comparison or simple equality
+            finalStatus = (fileHash.toLowerCase() === originalHash.toLowerCase()) ? 'VERIFIED' : 'TAMPERED';
+        } else if (fileHash) {
+            finalStatus = 'UNTRACKED';
         }
+
+        // Store hash data for integrity check modal
+        window.lastDownloadHashData = {
+            filename: filename,
+            fileSize: totalLength,
+            currentHash: fileHash || 'Not Computed',
+            storedHash: originalHash || 'Not available',
+            verificationStatus: finalStatus,
+            algorithm: 'BLAKE2b'
+        };
+
+        // Always show the notification toast when download completes
+        showDownloadNotification(filename, finalStatus);
 
     } catch (e) {
         console.error(`Error downloading ${filename}:`, e);
@@ -850,158 +933,42 @@ async function deleteSelected() {
 
     console.log(`Deleted ${successCount}/${count} files`);
 
+    // Show toast for delete
+    if (successCount > 0) {
+        showToast(`${successCount} file${successCount > 1 ? 's' : ''} deleted`, 'delete', {});
+    }
+
     // Clear selection and refresh
     selectedFiles.clear();
     updateBulkActions();
     loadRemoteFiles();
 }
 
-// ===== DOWNLOAD NOTIFICATION WITH INTEGRITY CHECK BUTTON =====
+// ===== DOWNLOAD NOTIFICATION =====
 function showDownloadNotification(filename, verificationStatus) {
-    // Create backdrop if it doesn't exist and this is the first notification
-    if (!document.querySelector('.notifications-backdrop')) {
-        const backdrop = document.createElement('div');
-        backdrop.className = 'notifications-backdrop';
-        backdrop.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(3px);
-            z-index: 9998;
-            animation: fadeIn 0.3s ease;
-        `;
-        document.body.appendChild(backdrop);
-    }
-
-    // Calculate position based on existing notifications
-    const existingNotifications = document.querySelectorAll('.download-notification');
-    let bottomPosition = 30; // Start at 30px from bottom
-
-    existingNotifications.forEach(notification => {
-        const rect = notification.getBoundingClientRect();
-        bottomPosition += rect.height + 15; // Add height + 15px gap
-    });
-
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = 'download-notification';
-    notification.style.cssText = `
-        position: fixed;
-        bottom: ${bottomPosition}px;
-        right: 30px;
-        background: #1f2937;
-        border: 1px solid #374151;
-        border-left: 4px solid ${verificationStatus === 'VERIFIED' ? '#10b981' : verificationStatus === 'TAMPERED' ? '#ef4444' : '#f59e0b'};
-        border-radius: 8px;
-        padding: 1.25rem;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-        z-index: 9999;
-        min-width: 350px;
-        animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        transition: bottom 0.3s ease;
-    `;
-
-    const statusIcon = verificationStatus === 'VERIFIED' ? '✓' : verificationStatus === 'TAMPERED' ? '⚠' : 'ℹ';
-    const statusText = verificationStatus === 'VERIFIED' ? 'Verified' : verificationStatus === 'TAMPERED' ? 'Security Warning' : 'Untracked';
-    const statusColor = verificationStatus === 'VERIFIED' ? '#10b981' : verificationStatus === 'TAMPERED' ? '#ef4444' : '#f59e0b';
-
-    notification.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-            <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <span style="font-size: 1.5rem; color: ${statusColor};">${statusIcon}</span>
-                    <h4 style="margin: 0; font-size: 1rem; color: var(--text-primary);">Download Complete</h4>
-                </div>
-                <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.25rem;">${filename}</p>
-                <p style="margin: 0; font-size: 0.75rem; color: ${statusColor}; font-weight: 600;">${statusText}</p>
-            </div>
-            <button onclick="closeDownloadNotification(this)" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.5rem; padding: 0; width: 24px; height: 24px;">×</button>
-        </div>
-        <button onclick="openIntegrityCheck(event)" class="btn-integrity-check" style="
-            width: 100%;
-            padding: 0.75rem;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-        ">
-            <span>🔍</span>
-            View Integrity Check
-        </button>
-    `;
-
-    // Add hover effect
-    const btn = notification.querySelector('.btn-integrity-check');
-    btn.onmouseenter = () => {
-        btn.style.transform = 'translateY(-2px)';
-        btn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
-    };
-    btn.onmouseleave = () => {
-        btn.style.transform = 'translateY(0)';
-        btn.style.boxShadow = 'none';
-    };
-
-    document.body.appendChild(notification);
-
-    // Auto-remove after 30 seconds and reposition remaining notifications
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-            repositionNotifications();
-        }
-    }, 30000);
-}
-
-function closeDownloadNotification(button) {
-    const notification = button.closest('.download-notification');
-    if (notification) {
-        notification.remove();
-        repositionNotifications();
-    }
-}
-
-function repositionNotifications() {
-    const notifications = document.querySelectorAll('.download-notification');
-
-    // Remove backdrop if no notifications remain
-    if (notifications.length === 0) {
-        const backdrop = document.querySelector('.notifications-backdrop');
-        if (backdrop) {
-            backdrop.remove();
-        }
-        return;
-    }
-
-    let bottomPosition = 30;
-
-    notifications.forEach(notification => {
-        notification.style.bottom = bottomPosition + 'px';
-        const rect = notification.getBoundingClientRect();
-        bottomPosition += rect.height + 15;
+    const hashData = window.lastDownloadHashData || {};
+    showToast(filename, 'download', {
+        hash: hashData.currentHash || null,
+        algorithm: hashData.algorithm || 'BLAKE2b',
+        verified: verificationStatus === 'VERIFIED',
+        status: verificationStatus,
+        fileSize: hashData.fileSize || null
     });
 }
 
-function openIntegrityCheck(event) {
-    // Close the notification that contains this button
-    const notification = event.target.closest('.download-notification');
-    if (notification) {
-        notification.remove();
-        repositionNotifications();
+function openToastHashModal(dataStr, btn) {
+    // Hide the toast when opening modal
+    const toast = btn.closest('.toast-notification');
+    if (toast) {
+        toast.remove();
     }
 
-    // Show modal with stored data
-    if (window.lastDownloadHashData) {
-        showHashVerificationModal(window.lastDownloadHashData);
+    // Parse data and show modal
+    try {
+        const data = JSON.parse(decodeURIComponent(dataStr));
+        showHashVerificationModal(data);
+    } catch (e) {
+        console.error('Failed to parse hash data for modal', e);
     }
 }
 
@@ -1069,6 +1036,8 @@ function showHashVerificationModal(data) {
         console.log(`  Stored Hash:  ${data.storedHash.substring(0, 16)}...`);
     }
 }
+
+// (Toast system defined above in lines 658+)
 
 function closeHashModal() {
     const modal = document.getElementById('hash-verification-modal');

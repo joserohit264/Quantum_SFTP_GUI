@@ -1,0 +1,156 @@
+%---------------------------------------------------------------
+%  SECTION III — SYSTEM ARCHITECTURE AND PROTOCOL DESIGN
+%---------------------------------------------------------------
+\section{System Architecture and Protocol Design}
+\label{sec:architecture}
+
+\subsection{Four-Tier Architecture}
+
+Q-SFTP is structured as a four-tier modular system, as shown in
+Fig.~\ref{fig:system_arch}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{system_architecture}
+  \caption{Q-SFTP four-tier system architecture.}
+  \label{fig:system_arch}
+\end{figure}
+
+\begin{enumerate}
+  \item \textbf{Client Layer}: A single-page application (HTML5/CSS3/
+        JavaScript) running in the browser. Performs client-side
+        BLAKE2b-256 hashing via \texttt{blakejs} and persists transfer
+        state in \texttt{localStorage}.
+  \item \textbf{Application Layer}: Flask~3.x on port~5000 handles
+        REST API endpoints, user sessions, integrity coordination,
+        privacy management, and admin panel.
+  \item \textbf{Transport Layer}: PQC handshake server on TCP port~8888
+        implements the Q-TLS protocol. All file data flows through this
+        fully encrypted channel.
+  \item \textbf{Storage Layer}: Per-user isolated directories
+        (\texttt{ServerStorage/\{username\}/}) and a shared folder
+        (\texttt{ServerStorage/shared/}) for collaborative access.
+\end{enumerate}
+
+\subsection{Q-TLS Handshake Protocol}
+
+The Q-TLS handshake achieves mutual authentication and establishes a
+forward-secret session key in four phases, as illustrated in
+Fig.~\ref{fig:pqc_handshake}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{pqc_handshake}
+  \caption{Four-phase Q-TLS post-quantum handshake.}
+  \label{fig:pqc_handshake}
+\end{figure}
+
+\textbf{Phase 1 — Hello Exchange.}
+The client sends a \textit{ClientHello} containing its Dilithium2
+certificate, a random nonce $N_C$, and a UTC timestamp $T_C$. The
+server verifies the certificate against the CA's pinned public key,
+checks that $|T_S - T_C| < 30$~s (replay protection), generates a
+fresh Kyber512 key pair $(pk_K, sk_K)$, and replies with a signed
+\textit{ServerHello}:
+\[
+  \sigma_S = \text{Dilithium2.Sign}(sk_S,\, N_C \| N_S \| pk_K)
+\]
+
+\textbf{Phase 2 — Kyber512 Key Encapsulation.}
+The client verifies $\sigma_S$, then encapsulates a shared secret:
+\[
+  (ct, ss) = \text{Kyber512.Encaps}(pk_K)
+\]
+The ciphertext $ct$ (768~B) is sent to the server, which recovers
+$ss$ via $\text{Kyber512.Decaps}(sk_K, ct)$.
+
+\textbf{Phase 3 — Mutual Authentication.}
+Both parties compute a transcript hash:
+\[
+  h_{tr} = \text{SHA-256}(\text{CH} \| \text{SH} \| \text{CKS})
+\]
+The client signs $h_{tr}$ with Dilithium2; the server verifies it,
+completing \emph{mutual} authentication.
+
+\textbf{Phase 4 — Secure Channel.}
+The session key is derived via HKDF-SHA256:
+\[
+  K = \text{HKDF}(ss,\; \text{salt}{=}\text{SHA-256}(N_C\|N_S),\;
+      \text{info}{=}\texttt{"Q-SFTP-SESSION-KEY"})
+\]
+All subsequent communication uses AES-256-GCM with per-message
+96-bit nonces.
+
+\subsection{BLAKE2b-256 File Integrity}
+
+Every file undergoes dual-side hash verification:
+\begin{enumerate}
+  \item Client computes $H_C = \text{BLAKE2b-256}(F)$ before upload.
+  \item Server computes $H_S = \text{BLAKE2b-256}(F)$ after reception.
+  \item Mismatch ($H_C \neq H_S$) signals in-transit corruption.
+  \item All hashes are persisted in \texttt{hash\_registry.json} and
+        periodically re-verified by a background \texttt{IntegrityChecker}
+        thread to detect at-rest tampering.
+\end{enumerate}
+
+\subsection{Resumable Chunked Transfer Protocol}
+
+Figure~\ref{fig:resumable} shows the chunked transfer design.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{resumable_transfers}
+  \caption{Chunked resumable transfer with persistence.}
+  \label{fig:resumable}
+\end{figure}
+
+Files are split into 256~KB chunks. Each chunk is independently
+AES-256-GCM encrypted and transmitted. The server maintains a
+\texttt{transfer\_log.json} with the current upload offset; the client
+mirrors this in \texttt{localStorage}. On reconnection, the server
+returns the saved \texttt{resume\_offset}, and the client resumes from
+the last confirmed byte—surviving browser refreshes, connection drops,
+and server restarts.
+
+\subsection{Role-Based Access Control (RBAC)}
+
+Q-SFTP enforces a three-tier RBAC model, as depicted in
+Fig.~\ref{fig:rbac}:
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{rbac}
+  \caption{Three-tier RBAC permission model with directory isolation.}
+  \label{fig:rbac}
+\end{figure}
+
+\begin{table}[htbp]
+  \centering
+  \caption{RBAC Permission Matrix}
+  \label{tab:rbac}
+  \begin{tabular}{lccc}
+    \toprule
+    \textbf{Operation} & \textbf{Admin} & \textbf{Standard} & \textbf{Guest} \\
+    \midrule
+    List / Download  & \checkmark & \checkmark & \checkmark \\
+    Upload / Mkdir   & \checkmark & \checkmark & $\times$ \\
+    Delete           & \checkmark & \checkmark & $\times$ \\
+    Admin Panel      & \checkmark & $\times$   & $\times$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Privacy and File Protection}
+
+\textbf{Metadata stripping:} The \texttt{PrivacyManager} removes
+EXIF data from JPEG/PNG images (Pillow), author/date metadata from
+PDFs (PyPDF2), and core properties from DOCX files (python-docx)
+before storage.
+
+\textbf{File validation:} \texttt{FileValidator} blocks 17 dangerous
+extensions and verifies file magic numbers for 20+ binary formats,
+preventing extension-spoofing uploadsof malware.
+
+\textbf{Audit logging:} All user actions are stored in SQLite with IP
+anonymisation (SHA-256 with a daily rotating salt) and log-chain
+hash integrity.

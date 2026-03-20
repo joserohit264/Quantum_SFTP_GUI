@@ -1,0 +1,27 @@
+\chapter{Conclusion}
+\lhead{Chapter 7. \emph{Conclusion}}
+\label{chap.7}
+
+This project has presented the design, implementation, and evaluation of a Quantum Secure File Transfer Protocol (Q-SFTP) that addresses the existential threat posed by quantum computing to classical cryptographic systems. By replacing RSA and Diffie-Hellman with NIST-standardized post-quantum algorithms — CRYSTALS-Kyber512 for key encapsulation and CRYSTALS-Dilithium2 for digital signatures — Q-SFTP ensures long-term data security against both classical and quantum adversaries.
+
+The key achievements of this project are:
+
+\begin{enumerate}
+    \item \textbf{Four-Phase PQC Handshake:} A novel Quantum-TLS handshake protocol achieving mutual authentication through Kyber512 key encapsulation, Dilithium2 transcript signatures, and HKDF-SHA256 session key derivation — all within four round-trips.
+    
+    \item \textbf{Comprehensive File Integrity:} A BLAKE2b-256 dual-verification system with a persistent hash registry and background integrity monitoring, detecting both in-transit corruption and at-rest tampering.
+    
+    \item \textbf{Resumable Chunked Transfers:} A 256 KB chunked transfer protocol with persistent state tracking on both client (localStorage) and server (JSON log), enabling reliable pause/resume across connection interruptions, browser refreshes, and system restarts.
+    
+    \item \textbf{Defense-in-Depth Security:} Multiple layers of protection including file type validation (extension blacklisting + magic number verification), automatic metadata stripping (EXIF, PDF, DOCX), IP anonymization in audit logs, and three-tier RBAC with per-user directory isolation.
+    
+    \item \textbf{Production-Ready Deployment:} A modern web GUI abstracting all cryptographic complexity, an admin panel for user and system management, Docker containerization support, and batch-script local deployment — demonstrating that post-quantum security is achievable without sacrificing usability.
+    
+    \item \textbf{Lightweight Post-Quantum CA:} A self-contained Certificate Authority built entirely on Dilithium2 signatures, with customized certificate serialization that reduced transmission overhead.
+\end{enumerate}
+
+Experimental evaluation confirmed that the system achieves its security goals: resistance to quantum cryptanalysis, man-in-the-middle attacks, replay attacks, and file tampering — while maintaining acceptable performance characteristics. The chunked transfer protocol introduces approximately 0.01\% cryptographic overhead per file, and the PQC handshake completes within practical time bounds.
+
+Despite the larger key sizes inherent to lattice-based cryptography (Dilithium2 public keys are 1,312 bytes vs. RSA-2048's 256 bytes), the one-time handshake cost is amortized over the session lifetime and does not significantly impact file transfer throughput.
+
+In summary, Q-SFTP demonstrates that the migration from classical to post-quantum secure communication is both practical and necessary, and that production-grade systems with comprehensive security features can be built using currently available PQC libraries and standards.

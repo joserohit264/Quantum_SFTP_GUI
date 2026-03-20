@@ -1,0 +1,68 @@
+%---------------------------------------------------------------
+%  Q-SFTP Research Paper — IEEE Two-Column Format
+%  Compile: pdflatex → bibtex → pdflatex → pdflatex
+%---------------------------------------------------------------
+\documentclass[conference]{IEEEtran}
+
+% Core packages
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{{Figures/}}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+\usepackage{cite}
+\usepackage{balance}
+\usepackage{microtype}
+
+% Caption formatting
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+
+%---------------------------------------------------------------
+%  TITLE, AUTHORS, AFFILIATIONS
+%---------------------------------------------------------------
+\title{Q-SFTP: A Post-Quantum Secure File Transfer Protocol\\
+Using CRYSTALS-Kyber and CRYSTALS-Dilithium}
+
+\author{
+  \IEEEauthorblockN{Jose Rohit\IEEEauthorrefmark{1},
+                    Muhammed Riyas K\IEEEauthorrefmark{1},
+                    Rishikesh N\IEEEauthorrefmark{1},
+                    Rohan Varghese\IEEEauthorrefmark{1}}
+  \IEEEauthorblockA{\IEEEauthorrefmark{1}%
+    Department of Computer Science and Engineering (Cyber Security)\\
+    Amrita Vishwa Vidyapeetham, Amritapuri, Kerala, India\\
+    \texttt{\{jose, riyas, rishikesh, rohan\}@am.students.amrita.edu}}
+}
+
+\begin{document}
+
+\maketitle
+
+%---------------------------------------------------------------
+%  INPUT SECTIONS (chapter-wise files)
+%---------------------------------------------------------------
+\input{sec_abstract}
+\input{sec_introduction}
+\input{sec_background}
+\input{sec_architecture}
+\input{sec_results}
+\input{sec_conclusion}
+
+%---------------------------------------------------------------
+%  REFERENCES
+%---------------------------------------------------------------
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

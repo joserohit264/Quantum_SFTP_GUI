@@ -1,0 +1,135 @@
+%---------------------------------------------------------------
+%  SECTION IV — RESULTS AND EVALUATION
+%---------------------------------------------------------------
+\section{Results and Evaluation}
+\label{sec:results}
+
+\subsection{Handshake Validation}
+
+The Q-TLS handshake was tested in both localhost and cross-device
+configurations. Figures~\ref{fig:client_out} and~\ref{fig:server_out}
+show the CLI output confirming successful certificate verification,
+Kyber512 key encapsulation, Dilithium2 transcript signing, and
+HKDF-SHA256 session key derivation.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{client}
+  \caption{Client-side Q-TLS handshake output (all four phases).}
+  \label{fig:client_out}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{server}
+  \caption{Server-side Q-TLS handshake output and session key establishment.}
+  \label{fig:server_out}
+\end{figure}
+
+\subsection{Cryptographic Parameters}
+
+Table~\ref{tab:crypto} summarises the algorithm parameters.
+All key sizes are as specified in FIPS~203/204 \cite{nist2024pqc}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Cryptographic Parameters in Q-SFTP}
+  \label{tab:crypto}
+  \begin{tabular}{lcccc}
+    \toprule
+    \textbf{Algorithm} & \textbf{Level} & \textbf{PK} & \textbf{SK}
+                       & \textbf{CT / Sig} \\
+    \midrule
+    Kyber512     & NIST L1        & 800 B   & 1,632 B & 768 B \\
+    Dilithium2   & NIST L2        & 1,312 B & 2,560 B & 2,420 B \\
+    AES-256-GCM  & 128-bit (PQ)   & ---     & 32 B    & +28 B$^{\dag}$ \\
+    BLAKE2b-256  & 128-bit (PQ)   & ---     & ---     & 32 B \\
+    \bottomrule
+    \multicolumn{5}{l}{$^{\dag}$12 B nonce + 16 B authentication tag per message.}
+  \end{tabular}
+\end{table}
+
+\subsection{Performance Benchmarks}
+
+Table~\ref{tab:dilithium} shows Dilithium performance benchmarks
+and Table~\ref{tab:kyber} shows Kyber benchmarks, both measured on an
+Intel Core i7-9750H CPU averaged over 1000 iterations.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Dilithium Digital Signature Benchmarks}
+  \label{tab:dilithium}
+  \begin{tabular}{lccc}
+    \toprule
+    \textbf{Operation} & \textbf{Dil.2} & \textbf{Dil.3}
+                       & \textbf{Dil.5} \\
+    \midrule
+    KeyGen()  & 6 ms  & 9 ms  & 15 ms \\
+    Sign()    & 27 ms & 46 ms & 58 ms \\
+    Verify()  & 7 ms  & 11 ms & 18 ms \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Kyber KEM Benchmarks (time / throughput)}
+  \label{tab:kyber}
+  \begin{tabular}{lcccccc}
+    \toprule
+    \textbf{Params} & \textbf{KG} & \textbf{KG/s}
+                    & \textbf{Enc} & \textbf{Enc/s}
+                    & \textbf{Dec} & \textbf{Dec/s} \\
+    \midrule
+    Kyber512  & 2.0 ms & 494 & 2.8 ms & 353 & 4.1 ms & 243 \\
+    Kyber768  & 3.4 ms & 294 & 4.4 ms & 228 & 6.1 ms & 165 \\
+    Kyber1024 & 5.1 ms & 197 & 6.2 ms & 161 & 8.3 ms & 121 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Q-SFTP uses Kyber512, completing a full handshake (two Dilithium
+operations + one Kyber encaps/decaps) in under 80~ms on the same
+hardware, which is acceptable for a per-session operation.
+
+\subsection{Chunked Transfer Overhead}
+
+For a file of size $F$ with 256~KB chunks:
+$N = \lceil F / 262\,144 \rceil$ chunks are transmitted.
+Each chunk incurs 28 bytes of AES-256-GCM overhead. For a 100~MB
+file ($N = 400$ chunks), the total overhead is $400 \times 28
+= 11{,}200$ bytes, or approximately $\mathbf{0.01\%}$.
+
+\subsection{Automated Security Testing}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{pytest_handshake}
+  \caption{Pytest test suite results for the Q-TLS handshake.}
+  \label{fig:pytest_hs}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\columnwidth]{pytest_ca}
+  \caption{Pytest test suite results for the CA module.}
+  \label{fig:pytest_ca}
+\end{figure}
+
+As shown in Figs.~\ref{fig:pytest_hs} and \ref{fig:pytest_ca},
+100\% of test cases pass across certificate issuance, mutual
+authentication, key derivation, hash verification, and replay
+detection. The security properties verified are:
+
+\begin{itemize}
+  \item \textbf{Quantum resistance}: IND-CCA2 under Kyber512 and
+        EUF-CMA under Dilithium2 (MLWE/MSIS hardness assumptions).
+  \item \textbf{MITM prevention}: Bilateral Dilithium2 transcript
+        signatures prevent impersonation.
+  \item \textbf{Replay prevention}: Random nonces and 30-second
+        timestamp window.
+  \item \textbf{Data integrity}: AES-256-GCM tags (in-transit) and
+        BLAKE2b-256 hashes (at-rest).
+  \item \textbf{Privacy}: Metadata stripped before storage; IPs
+        anonymised via rotating SHA-256 salts.
+\end{itemize}

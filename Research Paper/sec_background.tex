@@ -1,0 +1,64 @@
+%---------------------------------------------------------------
+%  SECTION II — BACKGROUND AND RELATED WORK
+%---------------------------------------------------------------
+\section{Background and Related Work}
+\label{sec:background}
+
+\subsection{Classical Secure File Transfer}
+
+Traditional SFTP \cite{ylonen2006ssh} and FTPS operate over a
+TLS~1.3 \cite{krawczyk2020tls13} or SSH handshake using RSA or
+ECDH/ECDSA. These handshakes establish a shared secret in
+$O(\log^3 n)$ time classically but are solvable in
+$O((\log n)^3)$ time on a quantum computer via Shor's algorithm
+\cite{shor1994algorithms}, rendering them fundamentally insecure in
+the post-quantum era.
+
+\subsection{Post-Quantum Cryptography}
+
+Post-Quantum Cryptography (PQC) encompasses algorithms believed to
+be secure against adversaries equipped with quantum computers
+\cite{dam2023survey}. NIST's 2024 standards \cite{nist2024pqc}
+formalise three families:
+
+\textbf{CRYSTALS-Kyber (ML-KEM, FIPS~203)} is a Key Encapsulation
+Mechanism (KEM) based on the Module-LWE problem. Kyber512 targets
+NIST Security Level~1 (equivalent to AES-128 security). Key and
+ciphertext sizes are 800~B and 768~B respectively, with key generation
+completing in $\approx 2$~ms on commodity hardware
+\cite{avanzi2021kyber}.
+
+\textbf{CRYSTALS-Dilithium (ML-DSA, FIPS~204)} is a digital signature
+scheme based on Module-LWE and Module-SIS \cite{ducas2018dilithium}.
+Dilithium2 targets NIST Security Level~2 with a 1,312-byte public key
+and 2,420-byte signature. It provides Existential Unforgeability under
+Chosen Message Attack (EUF-CMA).
+
+\textbf{AES-256-GCM} retains 128-bit security against Grover's
+quadratic speedup. It provides authenticated encryption (AEAD),
+combining CTR-mode encryption with a Galois MAC authentication tag (16
+bytes) and a 96-bit nonce (12 bytes), totalling 28 bytes overhead per
+encrypted message.
+
+\textbf{BLAKE2b-256} \cite{aumasson2013blake2} offers $\approx 3\times$
+the throughput of SHA-256 at equivalent security, making it ideal for
+real-time file integrity hashing on both client and server.
+
+\subsection{Related Work}
+
+Sola-Thomas and Imtiaz \cite{sola2025quantumftp} proposed a
+quantum-resistant FTP with a blockchain audit trail, validating
+Kyber-based key exchange but omitting integrity verification, RBAC,
+and a user-facing interface. Bos and Stehl\'{e} \cite{bos2023pqftp}
+demonstrated post-quantum FTP using lattice-based key exchange in an
+experimental TLS extension but did not address resumable transfers or
+metadata privacy. Baseri \cite{baseri2024navigating} surveyed quantum
+risks in networked environments but proposed no concrete implementation.
+Chen et al.\ \cite{chen2022hybridtls} designed a hybrid PQ-TLS
+handshake combining X25519 and Kyber, providing defense-in-depth
+against unexpected algorithmic weaknesses.
+
+\textbf{Research gap:} No existing work provides a complete,
+deployable post-quantum file transfer system combining PQC handshake,
+file integrity, resumable transfers, RBAC, metadata privacy, and a
+web GUI in a single containerised application. Q-SFTP fills this gap.

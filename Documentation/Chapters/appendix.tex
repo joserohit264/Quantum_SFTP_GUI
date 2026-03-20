@@ -1,0 +1,236 @@
+\chapter{Source Code}
+\lhead{Appendix A. \emph{Source Code}}
+
+This appendix includes selected source code from the Q-SFTP implementation, focused on the core handshake protocol and cryptographic utility modules. The code uses CRYSTALS-Kyber512 for key encapsulation and CRYSTALS-Dilithium2 for digital signatures.
+
+\section{Server Handshake}
+\CodeStyle
+\begin{lstlisting}[language=Python, caption={Python: Server Handshake State (handshake\_server.py)}]
+import socket, json, sys, time, uuid, os, base64, secrets
+from datetime import datetime, timezone, timedelta
+import utils
+from kyber_py.kyber import Kyber512
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
+
+HOST = '0.0.0.0'
+PORT = 8888
+SERVER_SUBJECT = "Server"
+
+class ServerHandshakeState:
+    def __init__(self, cert_filename: str):
+        self.server_cert = utils.load_cert(cert_filename)
+        self.private_key = utils.load_dilithium_private_key(SERVER_SUBJECT)
+        self.kyber_sk = None
+        self.shared_key = None
+        self.transcript_hash = None
+        self.session_key = None
+
+    def verify_client_hello(self, client_hello: dict) -> bool:
+        self.client_hello = client_hello
+        if client_hello.get("Type") != "ClientHello":
+            return False
+        client_cert = client_hello["client_cert"]
+        if not utils.check_cert_validity(client_cert):
+            return False
+        # Verify certificate signature using CA key
+        ca_pub_key = utils.load_dilithium_public_key("CA")
+        cert_full = client_cert.copy()
+        cert_signature_b64 = cert_full.pop("Signature", None)
+        message_signed_cert = utils.serialize_for_signing(cert_full)
+        if not utils.verify_signature(ca_pub_key, message_signed_cert, cert_signature_b64):
+            return False
+        # Check timestamp freshness (30-second window)
+        client_ts = datetime.strptime(
+            client_hello["client_timestamp"], "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - client_ts > timedelta(seconds=30):
+            return False
+        return True
+
+    def generate_server_hello(self) -> dict:
+        pk, sk = Kyber512.keygen()
+        self.kyber_sk = sk
+        self.server_nonce = secrets.token_hex(16)
+        self.server_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        message_to_sign = {
+            "Type": "ServerHello",
+            "server_cert": utils.clean_cert(self.server_cert),
+            "server_key_share": base64.b64encode(pk).decode('utf-8'),
+            "server_nonce": self.server_nonce,
+            "server_timestamp": self.server_timestamp,
+            "CipherSuite": "KYBER512_DILITHIUM2",
+        }
+        serialized_msg = utils.serialize_for_signing(message_to_sign)
+        sig_server_b64 = utils.sign_message(self.private_key, serialized_msg)
+        self.server_hello = message_to_sign
+        self.server_hello["Signature"] = sig_server_b64
+        return self.server_hello
+
+    def receive_key_share(self, client_key_share: dict) -> bool:
+        ciphertext = base64.b64decode(client_key_share["client_ciphertext"])
+        self.shared_key = Kyber512.decaps(self.kyber_sk, ciphertext)
+        return True
+
+    def verify_client_finished(self, client_finished, client_key_share):
+        self.transcript_hash = utils.calculate_transcript_hash(
+            self.client_hello, self.server_hello, client_key_share
+        )
+        if client_finished["transcript_hash"] != self.transcript_hash.hex():
+            return False
+        client_pub_key = utils.get_public_key_from_cert(
+            self.client_hello["client_cert"]
+        )
+        return utils.verify_signature(
+            client_pub_key, self.transcript_hash,
+            client_finished["Signature"]
+        )
+
+    def generate_server_finished(self) -> dict:
+        self.session_key = utils.derive_session_key(
+            self.shared_key, self.client_hello["client_nonce"],
+            self.server_nonce, self.transcript_hash
+        )
+        sig_final = utils.sign_message(self.private_key, self.transcript_hash)
+        return {
+            "Type": "ServerFinished",
+            "Signature": sig_final,
+            "transcript_hash": self.transcript_hash.hex()
+        }
+\end{lstlisting}
+
+\section{Client Handshake}
+\CodeStyle
+\begin{lstlisting}[language=Python, caption={Python: Client Handshake State (handshake\_client.py)}]
+import socket, json, sys, time, uuid, os, base64
+from datetime import datetime, timezone
+import utils
+from kyber_py.kyber import Kyber512
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
+
+HOST = os.environ.get('SERVER_IP', '127.0.0.1')
+PORT = 8888
+
+class ClientHandshakeState:
+    def __init__(self, cert_filename: str, key_subject: str):
+        with open(cert_filename, 'r') as f:
+            self.cert = json.load(f)
+        self.private_key = utils.load_dilithium_private_key(key_subject)
+
+    def generate_client_hello(self) -> dict:
+        self.client_nonce = uuid.uuid4().hex
+        self.client_timestamp = datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        self.client_hello_message = {
+            "Type": "ClientHello",
+            "client_cert": self.cert,
+            "client_nonce": self.client_nonce,
+            "client_timestamp": self.client_timestamp,
+            "CipherSuite": "KYBER512_DILITHIUM2"
+        }
+        return self.client_hello_message
+
+    def verify_server_hello(self, server_hello: dict) -> bool:
+        server_cert = server_hello["server_cert"]
+        if not utils.check_cert_validity(server_cert):
+            return False
+        server_pub_key = utils.get_public_key_from_cert(server_cert)
+        msg = server_hello.copy()
+        sig = msg.pop("Signature", None)
+        if "server_cert" in msg:
+            msg["server_cert"] = utils.clean_cert(msg["server_cert"])
+        if not utils.verify_signature(
+            server_pub_key, utils.serialize_for_signing(msg), sig
+        ):
+            return False
+        self.server_hello = server_hello
+        return True
+
+    def generate_key_share(self) -> dict:
+        server_kyber_pk = base64.b64decode(
+            self.server_hello["server_key_share"]
+        )
+        self.shared_key, ciphertext = Kyber512.encaps(server_kyber_pk)
+        return {
+            "Type": "ClientKeyShare",
+            "client_ciphertext": base64.b64encode(ciphertext).decode('utf-8')
+        }
+
+    def generate_client_finished(self, client_key_share: dict) -> dict:
+        self.transcript_hash = utils.calculate_transcript_hash(
+            self.client_hello_message, self.server_hello, client_key_share
+        )
+        sig = utils.sign_message(self.private_key, self.transcript_hash)
+        return {
+            "Type": "ClientFinished",
+            "Signature": sig,
+            "transcript_hash": self.transcript_hash.hex()
+        }
+\end{lstlisting}
+
+\section{Cryptographic Utilities}
+\CodeStyle
+\begin{lstlisting}[language=Python, caption={Python: Cryptographic Utilities (utils.py)}]
+import json, hashlib, os, base64
+from dilithium_py.dilithium import Dilithium2
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.backends import default_backend
+
+CERT_DIR = "CA/certs"
+KEY_DIR = "CA/keys"
+
+def serialize_for_signing(data):
+    """Deterministic JSON serialization for signing."""
+    return json.dumps(data, sort_keys=True, separators=(',', ':')).encode('utf-8')
+
+def sign_message(private_key, message):
+    """Sign with Dilithium2, return base64-encoded signature."""
+    if isinstance(message, str):
+        message = message.encode('utf-8')
+    sig = Dilithium2.sign(private_key, message)
+    return base64.b64encode(sig).decode('utf-8')
+
+def verify_signature(public_key, message, signature_b64):
+    """Verify a Dilithium2 signature."""
+    if isinstance(message, str):
+        message = message.encode('utf-8')
+    sig = base64.b64decode(signature_b64)
+    return Dilithium2.verify(public_key, message, sig)
+
+def calculate_transcript_hash(client_hello, server_hello, client_key_share):
+    """SHA-256 hash of the handshake transcript."""
+    transcript = (
+        serialize_for_signing(client_hello) +
+        serialize_for_signing(server_hello) +
+        serialize_for_signing(client_key_share)
+    )
+    return hashlib.sha256(transcript).digest()
+
+def derive_session_key(shared_key, client_nonce, server_nonce, transcript_hash):
+    """Derive AES-256 session key via HKDF-SHA256."""
+    salt = hashlib.sha256(
+        (client_nonce + server_nonce).encode('utf-8')
+    ).digest()
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(), length=32,
+        salt=salt, info=b"Q-SFTP-SESSION-KEY",
+        backend=default_backend()
+    )
+    return hkdf.derive(bytes(shared_key) + transcript_hash)
+
+def encrypt_data(session_key, plaintext):
+    """AES-256-GCM encryption with random nonce."""
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(session_key)
+    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
+    return nonce, ciphertext
+
+def decrypt_data(session_key, nonce, ciphertext):
+    """AES-256-GCM decryption."""
+    aesgcm = AESGCM(session_key)
+    return aesgcm.decrypt(nonce, ciphertext, None)
+\end{lstlisting}

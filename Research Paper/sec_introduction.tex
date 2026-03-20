@@ -1,0 +1,59 @@
+%---------------------------------------------------------------
+%  SECTION I — INTRODUCTION
+%---------------------------------------------------------------
+\section{Introduction}
+
+The global proliferation of cloud storage services, remote work
+infrastructure, and inter-organisational data exchange has made
+secure file transfer a critical requirement. Current industry
+deployments of Secure Shell File Transfer Protocol (SFTP)
+\cite{ylonen2006ssh} rely on RSA-2048 or ECDH for key agreement
+and RSA or ECDSA for authentication. Shor's algorithm
+\cite{shor1994algorithms}, when executed on a cryptographically
+relevant quantum computer, solves the integer factorisation and
+discrete logarithm problems in polynomial time, directly breaking
+all of these classical schemes.
+
+The threat is not merely theoretical. The ``Harvest Now, Decrypt
+Later'' (HNDL) adversarial model \cite{mosca2018cybersecurity}
+posits that an adversary can capture encrypted traffic today and
+decrypt it retroactively once quantum hardware matures. Data with
+long-term sensitivity (government records, medical files, financial
+contracts) is therefore at risk \emph{now}. Grover's algorithm
+\cite{grover1996fast} additionally provides a quadratic speedup for
+symmetric key search, halving the effective security of AES-128 to
+64~bits against a quantum attacker.
+
+The National Institute of Standards and Technology (NIST) concluded
+its Post-Quantum Cryptography (PQC) standardisation process in 2024,
+publishing FIPS~203 (ML-KEM / Kyber) \cite{nist2024pqc},
+FIPS~204 (ML-DSA / Dilithium), and FIPS~205 (SLH-DSA). These
+lattice-based algorithms are believed to resist both classical and
+quantum adversaries under the Module Learning With Errors (MLWE)
+assumption.
+
+Despite the urgency, PQC adoption in production file transfer systems
+remains scarce. Most existing works focus on isolated cryptographic
+primitives or theoretical protocol analyses \cite{dam2023survey},
+leaving a gap for end-to-end, deployable implementations.
+This paper addresses that gap with \textbf{Q-SFTP}, which contributes:
+
+\begin{itemize}
+  \item A four-phase post-quantum mutual authentication handshake
+        (Q-TLS) using Kyber512 and Dilithium2.
+  \item A BLAKE2b-256 \cite{aumasson2013blake2} dual-side integrity
+        ecosystem with persistent hash registry and background monitoring.
+  \item A chunked resumable transfer protocol with cross-session
+        state persistence via JSON log and browser \texttt{localStorage}.
+  \item Defense-in-depth: RBAC, metadata stripping, malicious-file
+        detection, and tamper-evident audit logging.
+  \item A browser-based web GUI and Docker containerisation for
+        production deployment.
+\end{itemize}
+
+The remainder of this paper is organised as follows.
+Section~\ref{sec:background} reviews related work and cryptographic
+background. Section~\ref{sec:architecture} details the system design
+and protocol. Section~\ref{sec:results} presents experimental results
+and security analysis. Section~\ref{sec:conclusion} concludes with
+future directions.

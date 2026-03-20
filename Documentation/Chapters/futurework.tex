@@ -1,0 +1,29 @@
+\chapter{Future Work}
+\lhead{Chapter 8. \emph{Future Work}}
+\label{chap.8}
+
+While Q-SFTP provides a comprehensive post-quantum file transfer solution, several promising directions for future enhancement have been identified:
+
+\begin{itemize}
+    \item \textbf{Hybrid Key Exchange:} Combining Kyber512 with X25519 (classical ECDH) in a hybrid KEM would provide defense-in-depth against potential unforeseen weaknesses in lattice-based schemes. This approach aligns with IETF draft recommendations for hybrid post-quantum TLS \cite{chen2022hybridtls}.
+    
+    \item \textbf{End-to-End File Encryption:} Extending the system with per-file encryption keys derived from user passwords or client-side key pairs, ensuring that even the server operator cannot access file contents (zero-knowledge storage).
+    
+    \item \textbf{Formal Security Verification:} Applying symbolic model checking tools such as ProVerif or the Tamarin prover to formally verify the Q-TLS handshake protocol's security properties (secrecy, authentication, forward secrecy) against automated adversary models.
+    
+    \item \textbf{WebSocket Transport:} Migrating the chunked transfer protocol from HTTP polling to WebSocket for reduced latency, bidirectional communication, and server-push capabilities — particularly beneficial for real-time transfer progress updates and large-file downloads.
+    
+    \item \textbf{Performance Benchmarking:} Systematic evaluation of handshake latency, file transfer throughput, and memory usage across varying network conditions (latency, bandwidth, packet loss), file sizes, and concurrent user loads to establish quantitative performance baselines.
+    
+    \item \textbf{Multi-Server and Cloud Deployment:} Support for distributed deployment with load balancing, database replication, and shared-nothing architecture for horizontal scalability in enterprise environments.
+    
+    \item \textbf{Advanced Integrity Features:} Extending the hash registry with version tracking (file history), Merkle tree-based bulk verification for efficient integrity checking of large repositories, and real-time file change notifications.
+    
+    \item \textbf{Cross-Platform Client:} Developing native desktop clients (Electron or Qt-based) with drag-and-drop support and system tray integration, providing an experience comparable to classical FTP clients like FileZilla.
+    
+    \item \textbf{Post-Quantum Algorithm Agility:} Implementing a negotiation mechanism in the handshake that allows the client and server to dynamically select from multiple PQC algorithms (e.g., Kyber, NTRU, Classic McEliece) based on security requirements and resource constraints.
+    
+    \item \textbf{Quantum Key Distribution (QKD) Integration:} As quantum networks mature, exploring the integration of hardware-based QKD for session key establishment as an alternative or supplement to software-based PQC key encapsulation.
+\end{itemize}
+
+These enhancements will further strengthen Q-SFTP's position as a practical, scalable, and forward-compatible standard for secure file transfer in the post-quantum era.

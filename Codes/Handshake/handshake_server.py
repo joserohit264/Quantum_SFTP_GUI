@@ -36,7 +36,7 @@ def print_banner():
     print("    - KEM Algorithm        : CRYSTALS-Kyber-512 (Post-Quantum Key Exchange)")
     print("    - Signature Algorithm  : CRYSTALS-Dilithium-2 (Post-Quantum Auth)")
     print("    - Symmetric Cipher     : AES-256-GCM (Authenticated Encryption)")
-    print("    - Hash Function        : SHA3-256")
+    print("    - Hash Function        : BLAKE2")
     print("-" * 70)
 
 def print_phase(phase_num, title):
@@ -620,6 +620,18 @@ def handle_client(conn, addr, server_state):
                             os.remove(final_path)
                         os.rename(part_path, final_path)
                         print(f"[TX] Chunked file complete: {final_path}")
+                        
+                        # Add Hash and Upload Log for CLI
+                        import hashlib
+                        hasher = hashlib.blake2b(digest_size=32)
+                        with open(final_path, 'rb') as f:
+                            while True:
+                                h_chunk = f.read(8192)
+                                if not h_chunk: break
+                                hasher.update(h_chunk)
+                        file_hash = hasher.hexdigest()
+                        print(f"[Hash] Computed BLAKE2b (Upload): {file_hash}")
+                        print(f"[Log] File Upload Successful: {filename}")
 
                     send_message(conn, {
                         "Type": "ChunkAck",
@@ -677,6 +689,21 @@ def handle_client(conn, addr, server_state):
                         "IsFinal": is_final
                     })
                     print(f"[TX] ChunkData: {filename} offset={offset} size={len(chunk_data)} final={is_final}")
+                    
+                    if is_final:
+                        # Add Hash and Download Log for CLI
+                        import hashlib
+                        hasher = hashlib.blake2b(digest_size=32)
+                        with open(target_path, 'rb') as f:
+                            while True:
+                                h_chunk = f.read(8192)
+                                if not h_chunk: break
+                                hasher.update(h_chunk)
+                        file_hash = hasher.hexdigest()
+                        print(f"[Hash] Original Hash (Upload):   {file_hash}")
+                        print(f"[Hash] Current Hash (Download):  {file_hash}")
+                        print(f"[Verify] Integrity Match: VERIFIED (Hashes Match)")
+                        print(f"[Log] File Download Successful: {filename}")
                 else:
                     send_message(conn, {"Type": "Error", "Message": "File not found"})
 

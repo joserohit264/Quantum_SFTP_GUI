@@ -590,9 +590,7 @@ body {
 
 /* ===== UPLOAD COMPLETE TOAST (Bottom Right) ===== */
 .toast-notification {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
+    position: relative;
     background-color: #1a1a1a;
     border-left: 4px solid var(--success);
     border-radius: 6px;
@@ -603,7 +601,8 @@ body {
     align-items: flex-start;
     gap: 1rem;
     min-width: 300px;
-    animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 420px;
+    animation: slideInLeft 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .toast-content h4 {
@@ -645,6 +644,18 @@ body {
 @keyframes slideInRight {
     from {
         transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
         opacity: 0;
     }
 

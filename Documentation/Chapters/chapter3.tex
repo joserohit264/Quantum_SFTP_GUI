@@ -1,0 +1,22 @@
+\chapter{Literature Survey}
+\lhead{Chapter 3. \emph{Literature Survey}}
+\label{chap.3}
+
+ The literature survey discusses the existing research works and technologies which motivated the proposed Quantum Secure File Transfer Protocol (Q-SFTP). The Literature Survey section discusses the traditional file transfer protocols, post-quantum cryptographic standards, secure communication framework and the research gap motivated for this work.
+
+\section{Existing Secure File Transfer Mechanisms}
+
+The traditional methods of transferring files such as FTP, FTPS and SFTP have been used for exchanging data with other entities over the network for many years. Since FTP does not provide any encryption, it can be seen that the data transferred using this method is vulnerable to an attacker. Later, FTPS has been achieved by using TLS, and SFTP has been used SSH for the encrypted sessions. In \cite{krawczyk2020tls13} and \cite{bos2023pqftp} it has been shown that these protocols are sufficiently secure against classical attacks, but since they depend on RSA and ECC, they are useless in the post-quantum era. Therefore, the previous systems are useless in providing confidentiality and integrity of the data when the quantum computers become usable.
+
+\section{Post-Quantum Cryptographic Developments}
+
+New results in Post-Quantum Cryptography (PQC).
+Post-Quantum Cryptography refers to cryptographic algorithms that are secure against an adversary possessing a quantum computer. NIST has started a standardization process to detect robust and efficient PQC algorithms. So far CRYSTALS-Kyber and CRYSTALS-Dilithium have been identified as efficient key encapsulation and key-secure digital signatures respectively \cite{avanzi2021kyber, dam2023survey}. Both are lattice-based key-establishment algorithms with strong security assumptions and good efficiency criteria, that can be implemented in current communication protocols.
+
+\section{Quantum-Resilient Communication Protocols}
+
+Several works have investigated how to extend current communication systems with quantum-safe cryptography. These approaches include using hybrid TLS models that apply classical and post-quantum algorithms to gain backward compatibility while enhancing resistance against quantum attacks. However, these approaches are still mostly in the design or experimental phases, and their real implementations are scarce. Furthermore, few works have evaluated their performance in practical network environments. These results motivate the design and implementation of a deployable post-quantum secure file transfer protocol.
+
+\section{Research Gap and Motivation}
+
+Although there has been considerable research on post-quantum cryptography, its adoption in secure file transfer systems is scarce. Most of the existing works either lean towards the design of cryptographic algorithms or consider general-purpose communication protocols, not taking into account file transfer efficiency, session handling, nor usability. In this work, we fill this gap by formulating and implementing a Quantum Secure File Transfer Protocol (Q-SFTP) that integrates practical quantum-resistant cryptographic primitives into an efficient and secure client-server file transfer system with theoretical guarantees in both directions \cite{sola2025quantumftp, baseri2024navigating}.

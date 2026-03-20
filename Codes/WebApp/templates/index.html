@@ -142,16 +142,7 @@
         </div>
     </div>
 
-    <!-- Upload Complete Toast (Bottom Right) -->
-    <div id="upload-complete-toast" class="toast-notification hidden">
-        <div class="toast-content">
-            <h4>Upload complete</h4>
-            <p id="toast-filename">filename.ext</p>
-        </div>
-        <button class="toast-close" onclick="closeToast()">
-            <i class="fa-solid fa-xmark"></i>
-        </button>
-    </div>
+    <!-- Dynamic Toasts Managed by app.js -->
 
     <!-- Hash Verification Modal -->
     <div id="hash-verification-modal" class="hash-modal hidden">
@@ -216,7 +207,7 @@
         const USERNAME = "{{ username }}";
     </script>
     <script src="https://cdn.jsdelivr.net/npm/blakejs@1.2.1/blake2b.min.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2.1"></script>
 </body>
 
 </html>

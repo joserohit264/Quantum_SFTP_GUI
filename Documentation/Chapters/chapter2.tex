@@ -1,0 +1,27 @@
+\chapter{Background}
+\lhead{Chapter 2. \emph{Background}}
+\label{chap.2}
+
+This chapter provides the motivation for the construction of the Quantum Secure File Transfer Protocol (Q-SFTP). It reviews the history of secure file transfer methods, the cryptographic issues associated with these methods due to the advent of quantum computing, and the post-quantum techniques and handshake model upon which our system is built. 
+
+\section{Secure File Transfer Protocols}
+
+The protocol SFTP is a standard network protocol, used to securely transfer files over an encrypted session. It is implemented on top of the Secure Shell (SSH) protocol to provide confidentiality, integrity and authentication of data during transfer. However, security of the SFTP protocol relies on classical cryptographic algorithms such as RSA and Elliptic Curve Cryptography (ECC). Even though the above mentioned algorithms provide good protection against current computing threats, they remain susceptible to attacks from future quantum computers that will be able to break the underlying mathematical assumptions of these algorithms. This threat puts the long-term confidentiality of data transferred using classical encryption at risk. 
+
+\section{Quantum Computing and Cryptographic Threats}
+
+Quantum computing applies the principles of quantum mechanics, including superposition and entanglement, to perform complex computations in parallel.  Algorithms like Shor’s and Grover’s leverage these properties to efficiently solve mathematical problems that are currently intractable for classical computers.  Since the security of cryptographic systems such as RSA and ECC is based on these problems, the emergence of large-scale quantum computers will render such systems insecure.  This threat highlights the necessity of developing quantum-resistant cryptographic solutions that can protect data and communication in the post-quantum era. 
+
+\section{Post-Quantum Cryptography}
+
+Post-Quantum Cryptography (PQC) is a set of encryption and authentication algorithms that is assumed to be secure under the presence of classical and quantum adversaries. NIST has standardized a number of PQC schemes, such as the lattice-based key encapsulation scheme CRYSTALS-Kyber and the digital signature scheme CRYSTALS-Dilithium. Both schemes provide cryptographic primitives with strong security guarantees as well as good efficiency for implementation, which makes them ideal candidates to be incorporated into practical systems. In this project, we use these two schemes as the basis of the Quantum Secure File Transfer Protocol (Q-SFTP).
+
+\section{File Transfer Protocol (FTP)}
+
+The File Transfer Protocol (FTP) was one of the first standards developed for transferring files between clients and servers on a network. Although it provided a reliable way to exchange files between a client and server, it was sorely lacking in the area of encryption -- both the login credentials as well as the files were vulnerable to being intercepted.
+Eventually, speaking of FTPS and SFTP, more security is added by adding encryption with SSL/TLS and SSH, but these use classical cryptographic systems, which are vulnerable to quantum attacks that break the mathematical assumptions.
+
+
+\section{Quantum-TLS (Q-TLS) Handshake}
+
+Q-SFTP provides an extra layer of security over top of Q-SFTP’s Quantum Transport Layer Security (Q-TLS) handshake, which is somewhat analogous in purpose to the TLS protocol. While TLS might use RSA or Elliptic Curve Diffie-Hellman (ECDHE) to provide a session key exchange that is quantum resistant, Q-SFTP uses CRYSTALS-Kyber. Thereafter an analogous process provides the authentication portion of the handshake via CRYSTALS-Dilithium digital signatures.

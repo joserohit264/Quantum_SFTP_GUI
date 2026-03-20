@@ -1,0 +1,37 @@
+%---------------------------------------------------------------
+%  ABSTRACT & KEYWORDS
+%---------------------------------------------------------------
+\begin{abstract}
+Classical secure file transfer protocols (SFTP) rely on RSA and
+Elliptic Curve Diffie-Hellman (ECDH), both of which are vulnerable
+to Shor's algorithm running on a sufficiently powerful quantum
+computer. The ``Harvest Now, Decrypt Later'' (HNDL) threat demands
+an immediate transition to quantum-resistant alternatives. This paper
+presents \textbf{Q-SFTP}, a production-grade post-quantum secure file
+transfer system that replaces all classical cryptographic primitives
+with NIST-standardized algorithms: \textbf{CRYSTALS-Kyber512}
+(ML-KEM, FIPS 203) for key encapsulation and
+\textbf{CRYSTALS-Dilithium2} (ML-DSA, FIPS 204) for digital
+signatures, combined with AES-256-GCM for symmetric encryption
+and BLAKE2b-256 for file integrity verification.
+
+Beyond the core cryptographic layer, Q-SFTP delivers a
+production-ready feature set: a four-phase mutual authentication
+handshake (Q-TLS), a chunked resumable transfer protocol with
+cross-session state persistence, role-based access control (RBAC)
+with per-user directory isolation, automatic metadata stripping
+(EXIF, PDF, DOCX), malicious file protection via extension
+blacklisting and magic number validation, and a tamper-evident
+activity audit log. All functionality is exposed through a
+modern, browser-based web GUI backed by a Flask 3.x server and
+containerised with Docker. Experimental evaluation confirms
+quantum-safe resistance against cryptanalysis, man-in-the-middle,
+and replay attacks, while incurring approximately 0.01\% cryptographic
+overhead per file transfer.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Post-Quantum Cryptography, CRYSTALS-Kyber, CRYSTALS-Dilithium,
+Secure File Transfer, BLAKE2b, AES-256-GCM, Resumable Transfers,
+Role-Based Access Control, NIST PQC, Q-TLS
+\end{IEEEkeywords}

@@ -1,0 +1,50 @@
+%---------------------------------------------------------------
+%  SECTION V — CONCLUSION AND FUTURE WORK
+%---------------------------------------------------------------
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+This paper presented \textbf{Q-SFTP}, a production-grade post-quantum
+secure file transfer protocol that replaces all classical cryptographic
+primitives with NIST-standardised algorithms. The key contributions are:
+
+\begin{enumerate}
+  \item A four-phase Q-TLS handshake using Kyber512 (IND-CCA2) and
+        Dilithium2 (EUF-CMA) achieving mutual authentication and
+        ephemeral forward secrecy in under 80~ms.
+  \item A BLAKE2b-256 dual-side integrity ecosystem with persistent
+        hash registry and periodic background monitoring for at-rest
+        tamper detection.
+  \item A chunked resumable transfer protocol with $\approx 0.01\%$
+        cryptographic overhead per file, surviving connection
+        interruptions and session restarts.
+  \item Defense-in-depth: three-tier RBAC with directory isolation,
+        automatic metadata stripping, magic-number file validation,
+        and tamper-evident audit logging.
+  \item A browser-based web GUI and Docker containerisation enabling
+        zero-configuration deployment.
+\end{enumerate}
+
+Experimental evaluation confirms quantum-safe security against all
+considered attack classes (quantum cryptanalysis, MITM, replay, and
+data tampering) with negligible performance overhead, demonstrating
+that the migration from classical to post-quantum secure communication
+is both achievable and practical today.
+
+\subsection*{Future Work}
+
+\begin{itemize}
+  \item \textbf{Hybrid KEM}: Combining Kyber512 with X25519 for
+        defence-in-depth against unforeseen lattice weaknesses
+        \cite{chen2022hybridtls}.
+  \item \textbf{Formal verification}: Applying ProVerif or Tamarin
+        to formally verify secrecy and authentication properties.
+  \item \textbf{WebSocket transport}: Replacing HTTP polling with
+        a persistent WebSocket connection for lower latency and
+        server-push transfer updates.
+  \item \textbf{End-to-end encryption}: Per-file client-side
+        encryption keys to achieve zero-knowledge server storage.
+  \item \textbf{Algorithm agility}: Handshake negotiation supporting
+        multiple PQC KEM/signature schemes (NTRU, McEliece) to future-proof
+        the protocol against individual algorithm weaknesses.
+\end{itemize}

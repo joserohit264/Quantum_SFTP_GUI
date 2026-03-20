@@ -1,0 +1,576 @@
+%------------------------------------------------------%
+% B.Tech CSE (CYS) Project Latex Template
+%
+% Authors: Dr. Lakshmy K V and Ramaguru Radhakrishnan
+% Date   : 10 - APR - 2025
+%------------------------------------------------------%
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[margin=1in]{geometry}
+\usepackage [english]{babel} % Sets document language to English for proper hyphenation and typographic rules.
+\usepackage [autostyle, english = american]{csquotes} % For smart quotation marks and language-specific quoting styles.
+
+
+\usepackage{bold-extra} % Allows use of \textbold for bold small caps and other font enhancements.
+\usepackage{amsmath} % Provides advanced math environments and symbols.
+\usepackage{amsfonts}  % Gives access to additional math fonts like \mathbb and \mathfrak.
+\usepackage{amssymb}  % Provides additional mathematical symbols.
+\usepackage{amsthm} % Provides theorem-like environments (e.g., theorems, definitions).
+\theoremstyle{definition} % Sets the style for theorem environments (like definitions) to non-italic.
+\usepackage{float}  % Provides H placement specifier for figures and tables.
+\newtheorem{Definition}{Definition}[section] % Defines a new theorem-like environment for definitions, numbered by section.
+
+\MakeOuterQuote{"}  % Makes double quotes act as smart quotes automatically.
+\usepackage{setspace}  % Allows setting of line spacing, such as \onehalfspacing.
+\onehalfspacing  % Sets 1.5 line spacing throughout the document for readability.
+
+\usepackage{graphicx} % Used for including images and graphics with \includegraphics.
+\graphicspath{{Figures/}} % Sets the default directory for images to "Figures/".
+
+\usepackage{array}  % Enhances table formatting, e.g., custom column types.
+\usepackage{soul} % highlighting 
+
+\usepackage{cite} % Improves citation handling and compresses numerical citation ranges.
+
+\usepackage{natbib}  % Provides flexible citation styles (author-year and numeric).
+
+\usepackage{longtable} % Allows tables to span multiple pages.
+
+\usepackage{fancyhdr}  % For customizing headers and footers.
+\usepackage{titletoc} % Customizes table of contents formatting.
+
+\usepackage{tabto}  % Enables tabbing at specific horizontal positions.
+\usepackage{enumitem} % Allows customization of list environments (e.g., spacing, labels).
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}} % Defines a new centered column type for tables.
+
+\setcitestyle{square} % Sets citation style to use square brackets (e.g., [1], [2]).
+
+\usepackage{algorithm} % Used to create floating algorithm environments; useful for inserting algorithms with captions and labels.
+% Alternatively, \usepackage[ruled,vlined]{algorithm2e} % An alternative algorithm package that offers more styling options (rules, lines, etc.)
+\usepackage{algpseudocode} % Provides the 'algorithmic' environment for writing pseudocode in combination with 'algorithm'.
+
+\usepackage{xcolor} % Adds color support to LaTeX (for text, tables, links, etc.), extends the basic color capabilities.
+\definecolor{darkgray}{rgb}{0.4, 0.4, 0.4} % Defines a custom color named 'darkgray' using RGB values.
+
+\usepackage{hyperref} % Enables hyperlinks within the document and to external URLs.
+\hypersetup{
+	colorlinks=true, % Enables colored links instead of boxed links.
+	linkcolor=blue, % Color of internal document links (e.g., table of contents).
+	filecolor=blue,  % Color for file links (e.g., PDF attachments).   
+	urlcolor=blue,  % Color for hyperlinks (URLs).
+	citecolor=blue  % Color for citation links.
+}
+
+%-----------------------------------------------------%
+%              Code Listing Settings
+%-----------------------------------------------------%
+\usepackage{listings} % Used to display source code listings with syntax highlighting, line numbers, etc.
+
+\lstdefinelanguage{Python}{
+    keywords={def, return, if, elif, else, while, for, break, continue, pass, import, from, as, class, try, except, finally, raise, with, lambda, assert, yield, global, nonlocal, True, False, None, and, or, not, in, is},
+    keywordstyle=\color{blue}\bfseries,
+    ndkeywords={self, cls, __init__, __name__, __main__, print, input, range, len, list, dict, tuple, set, str, int, float, bool, open, read, write, close, map, filter, zip, enumerate},
+    ndkeywordstyle=\color{darkgray}\bfseries,
+    identifierstyle=\color{black},
+    sensitive=true,
+    comment=[l]{\#},
+    morecomment=[s]{"""}{"""},
+    morecomment=[s]{'''}{'''},
+    commentstyle=\color{magenta}\ttfamily,
+    stringstyle=\color{red}\ttfamily,
+    morestring=[b]',
+    morestring=[b]"
+}
+
+\newcommand{\CodeStyle}{
+	\lstset{ 
+        numbers=left,                   
+        stepnumber=1,                   
+        numbersep=5pt,                   
+        showspaces=false,               
+        showstringspaces=false,         
+        showtabs=false,                 
+        frame=single,                          
+        tabsize=2,                      
+        captionpos=b,                   
+        breaklines=true,                
+        breakatwhitespace=false,
+        keywordstyle=\textcolor{blue},
+        commentstyle=\color{magenta},
+        stringstyle=\color{red},
+    }
+}
+
+%-----------------------------------------------------%
+%              Project Specific Section
+%-----------------------------------------------------%
+
+\newcommand{\topic}{Quantum Secure File Transfer Protocol}
+\newcommand{\SOneName}{Arul Sujith S}
+\newcommand{\SOneRN}{CB.EN.U4CYS22008}
+\newcommand{\STwoName}{Hemadhri P C}
+\newcommand{\STwoRN}{CB.EN.U4CYS22026}
+\newcommand{\SThreeName}{J.P. Hemanth Kumaar}
+\newcommand{\SThreeRN}{CB.EN.U4CYS22028}
+\newcommand{\SFourName}{Jose Rohit M}
+\newcommand{\SFourRN}{CB.EN.U4CYS22030}
+\newcommand{\gname}{Dr. Aravind Vishnu S S} % Guide Name
+\newcommand{\gdes}{Assistant Professor } % Guide Designation
+\newcommand{\dept}{TIFAC-CORE IN CYBER SECURITY}
+\newcommand{\spec}{Computer Science And Engineering (Cyber Security)}
+\newcommand{\yearofpassing}{NOVEMBER 2025} %Project Graduation
+
+
+%-----------------------------------------------------%
+%              Start of Document
+%-----------------------------------------------------%
+
+% Document Start
+\begin{document}
+%-----------------------------------------------------%
+%                 Title Page
+%-----------------------------------------------------%
+	\begin{titlepage}
+    \begin{center}
+        \Large
+        \textbf{\topic}
+        
+        \vspace*{32pt}
+        \normalsize
+        PROJECT REPORT 
+        
+        \vspace*{32pt}
+        \textbf{\textit{Submitted by}}
+        
+        \vspace*{24pt}
+        \begin{tabular}{@{} l l @{}}
+            \SOneName   & \SOneRN   \\
+            \STwoName   & \STwoRN   \\
+            \SThreeName & \SThreeRN \\
+            \SFourName  & \SFourRN  \\
+        \end{tabular}
+        
+        \vspace*{32pt}
+        \normalsize
+        \textit{\textbf{in partial fulfillment for the award of the degree}}
+        
+        \vspace*{10pt}
+        \textbf{\textit{of}}
+        
+        \vspace*{10pt}
+        \textbf{Bachelor of Technology}
+        
+        \vspace*{10pt}
+        in
+        
+        \vspace*{10pt}
+        \textbf{\spec}
+        
+        \vspace*{32pt}
+        \includegraphics[scale=0.7]{Logo1.jpg}
+        
+        \vspace*{20pt}
+        \normalsize
+        \textbf{\dept}
+        
+        \vspace*{5pt}
+        AMRITA SCHOOL OF COMPUTING
+        
+        \vspace*{5pt}
+        \large
+        \textbf{AMRITA VISHWA VIDYAPEETHAM}
+        
+        \vspace*{5pt}
+        \normalsize
+        COIMBATORE - 641 112
+        
+        \vspace*{10pt}
+        \yearofpassing
+    \end{center}
+\end{titlepage}
+
+%-----------------------------------------------------%
+%               Bonafide certificate
+%-----------------------------------------------------%
+
+\clearpage
+\thispagestyle{empty}
+\begin{titlepage}
+    \begin{center}
+        \Large
+        \textbf{\topic}
+        
+        \vspace*{15pt}
+        \normalsize
+        PROJECT REPORT 
+        
+        \vspace*{15pt}
+        \textbf{\textit{Submitted by}}
+        
+        \vspace*{15pt}
+        \begin{tabular}{@{} l l @{}}
+            \SOneName   & \SOneRN   \\
+            \STwoName   & \STwoRN   \\
+            \SThreeName & \SThreeRN \\
+            \SFourName  & \SFourRN  \\
+        \end{tabular}
+        
+        \vspace*{18pt}
+        \normalsize
+        \textit{\textbf{in partial fulfillment for the award of the degree}}
+        
+        \vspace*{8pt}
+        \textbf{\textit{of}}
+        
+        \vspace*{8pt}
+        \textbf{Bachelor of Technology}
+        
+        \vspace*{8pt}
+        in
+        
+        \vspace*{8pt}
+        \textbf{\spec}
+        
+        \vspace*{18pt}
+        \textit{Under the guidance of}
+        
+        \vspace*{8pt}
+        {\bfseries \gname} \\
+        \gdes \\
+        Amrita Vishwa Vidyapeetham \\
+        Coimbatore
+        
+        \vspace*{18pt}
+        \includegraphics[scale=0.7]{Logo1.jpg}
+        
+        \vspace*{10pt}
+        \normalsize
+        \textbf{\dept}
+        
+        \vspace*{5pt}
+        AMRITA SCHOOL OF COMPUTING
+        
+        \vspace*{5pt}
+        \large
+        \textbf{AMRITA VISHWA VIDYAPEETHAM}
+        
+        \vspace*{5pt}
+        \normalsize
+        COIMBATORE - 641 112
+        
+        \vspace*{10pt}
+        \yearofpassing
+    \end{center}
+\end{titlepage}
+    	
+%-----------------------------------------------------%
+%               Bonafide certificate
+%-----------------------------------------------------%
+	\clearpage
+\thispagestyle{empty}
+\newpage
+
+\begin{center}
+    {\Large \textbf{AMRITA VISHWA VIDYAPEETHAM}}\\[5pt]
+    {\large \textbf{AMRITA SCHOOL OF COMPUTING}}\\
+    {\large \textbf{COIMBATORE - 641 112}}\\[1cm]
+    
+    \includegraphics[scale=0.70]{Figures/Logo1.jpg}\\[1cm]
+    
+    {\large \textbf{BONAFIDE CERTIFICATE}}
+\end{center}
+
+\vspace{0.5cm}
+
+\noindent This is to certify that this project entitled \textbf{"\topic"} submitted by 
+\textbf{\SOneName\ (\SOneRN), 
+\STwoName\ (\STwoRN), 
+\SThreeName\ (\SThreeRN), 
+\SFourName\ (\SFourRN)}, in partial fulfillment of the requirements for the award of the \textbf{Degree of Bachelor of Technology} in \textbf{\spec} is a bonafide record of the work carried out by them under my guidance and supervision at Amrita School of Computing, Coimbatore.
+
+\vspace{1.5cm}
+
+\noindent\begin{minipage}[t]{0.48\textwidth}
+\textbf{\gname} \\
+\gdes
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\raggedleft
+\textbf{Prof. M. Sethumadhavan} \\
+Professor and Head
+\end{minipage}
+
+\vspace{2cm}
+
+\noindent This project report was evaluated by us on \underline{\hspace{5cm}}.
+
+\vspace{4cm}
+
+\noindent\begin{minipage}[t]{0.48\textwidth}
+\textbf{INTERNAL EXAMINER}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\raggedleft
+\textbf{EXTERNAL EXAMINER}
+\end{minipage}
+
+	
+%-----------------------------------------------------%
+%                Declaration Page
+%-----------------------------------------------------%
+	
+\begin{titlepage}
+    \begin{center}
+        \large
+        \textbf{AMRITA VISHWA VIDYAPEETHAM}\\[5pt]
+        \normalsize
+        \textbf{AMRITA SCHOOL OF COMPUTING, COIMBATORE}\\[3pt]
+        \textbf{TIFAC-CORE IN CYBER SECURITY}\\[32pt]
+
+        \normalsize
+        \textbf{DECLARATION}
+    \end{center}
+
+    \vspace{22pt}
+
+    \begin{sloppypar}
+    \noindent
+    We hereby declare that this project entitled \textbf{``\topic''} is a record of the original work done by us under the guidance of \textbf{\gname}, \gdes, TIFAC-CORE in Cyber Security, Amrita Vishwa Vidyapeetham and that this work has not formed the basis for the award of any degree, diploma, associateship, fellowship, or any other similar title, to any candidate in any university, to the best of our knowledge.
+    \end{sloppypar}
+
+    \vspace{25pt}
+
+    \noindent\textbf{Place:} Coimbatore \hfill \textbf{Date:} \underline{\hspace{4cm}}
+
+    \vspace{1.2cm}
+
+    \noindent
+    \vspace{0.5cm}\SOneName\ (\SOneRN)\\[8pt]  
+    \vspace{0.5cm}\STwoName\ (\STwoRN)\\[8pt] 
+    \vspace{0.5cm}\SThreeName\ (\SThreeRN)\\[8pt] 
+    \vspace{0.5cm}\SFourName\ (\SFourRN)\\[8pt] 
+
+
+    \vfill
+
+    \begin{center}
+        \textbf{COUNTERSIGNED}\\[50pt]
+        \textbf{Prof. M. Sethumadhavan}\\
+        Professor and Head,\\
+        TIFAC-CORE in Cyber Security
+    \end{center}
+
+\end{titlepage}
+
+\clearpage
+	
+%-----------------------------------------------------%
+%             Acknowledgements
+%-----------------------------------------------------%
+    
+	\begin{titlepage}
+    \begin{center}
+        \huge{\textbf{Acknowledgment}}
+    \end{center}
+    
+    \normalsize
+    \vspace*{22pt}
+    \begin{sloppypar}
+        \noindent
+        \baselineskip 0.7 cm
+        At the very outset, we would like to offer our heartfelt gratitude to the \textbf{Almighty}, whose blessings gave us the strength, wisdom, and perseverance to complete this project.
+        
+        \vspace*{12pt}
+        \noindent
+        We express our sincere thanks to our guide, \textbf{\gname}, \gdes, TIFAC-CORE in Cyber Security, Amrita Vishwa Vidyapeetham, for his valuable guidance, continuous encouragement, and technical insights throughout the project.
+        
+        \vspace*{12pt}
+        \noindent
+        We are immensely grateful to \textbf{Prof. M. Sethumadhavan}, Professor and Head, TIFAC-CORE in Cyber Security, for his visionary leadership.
+        
+        \vspace*{12pt}
+        \noindent
+        We would also like to extend our heartfelt thanks to \textbf{Mr. Sitaram Chamarty}, Professor of Practice, TIFAC-CORE in Cyber Security, Amrita Vishwa Vidyapeetham, for his constructive feedback, mentoring, expert knowledge shared during key phases of development.
+        
+        \vspace*{12pt}
+        \noindent
+        We wish to acknowledge the contributions of our family, friends, and seniors for their constant encouragement, emotional support, and constructive discussions. Their curiosity and questions helped us view our work from new perspectives and strengthened our understanding of the subject.
+        
+        \vspace*{12pt}
+        \noindent
+        We are also thankful to all the faculty members of TIFAC-CORE in Cyber Security, whose direct or indirect support and encouragement played a vital role in the successful completion of this project.
+        
+
+    \end{sloppypar}
+\end{titlepage}
+
+    
+%-----------------------------------------------------%
+%               Project Abstract
+%-----------------------------------------------------%
+	
+\clearpage 	
+\pagenumbering{roman}
+\section*{{\centerline{\huge Abstract}}\hfill} \addcontentsline{toc}{chapter}{Abstract}
+\vspace*{22pt}
+\baselineskip 0.7 cm 
+
+The rapid advancement of quantum computing poses an existential threat to classical cryptographic systems that underpin secure communication protocols. Shor's algorithm enables quantum computers to break RSA and Elliptic Curve Cryptography in polynomial time, rendering current Secure File Transfer Protocols (SFTP) fundamentally insecure. The ``Harvest Now, Decrypt Later'' (HNDL) threat model further demands proactive migration to quantum-resistant alternatives.
+
+This project presents the design and implementation of a \textbf{Quantum Secure File Transfer Protocol (Q-SFTP)}, a production-grade, post-quantum variant of SFTP that replaces vulnerable classical algorithms with NIST-standardized post-quantum cryptographic (PQC) primitives: \textbf{CRYSTALS-Kyber512} (ML-KEM, FIPS 203) for key encapsulation and \textbf{CRYSTALS-Dilithium2} (ML-DSA, FIPS 204) for digital signatures, combined with AES-256-GCM for symmetric encryption and BLAKE2b-256 for file integrity verification.
+
+Q-SFTP introduces a novel four-phase mutual authentication handshake protocol, role-based access control (RBAC) with per-user directory isolation, automatic metadata stripping (EXIF, PDF, DOCX) for privacy preservation, malicious file protection via extension blacklisting and magic number validation, a chunked resumable transfer mechanism with persistent state tracking, and a comprehensive activity logging system with IP anonymization. The system is deployed as a modern web application with a browser-based GUI that abstracts all cryptographic complexity behind an intuitive FTP-style interface, including an admin panel for user and system management.
+
+Experimental evaluations confirm that Q-SFTP provides resistance to quantum cryptanalysis, man-in-the-middle attacks, replay attacks, and data tampering, while maintaining acceptable performance characteristics with approximately 0.01\% cryptographic overhead per file transfer.
+
+\vspace*{12pt}
+\noindent \textbf{Keywords:} Post-Quantum Cryptography, CRYSTALS-Kyber, CRYSTALS-Dilithium, Secure File Transfer, BLAKE2b, AES-256-GCM, Resumable Transfers, Role-Based Access Control, Metadata Stripping, Docker, Flask
+
+
+
+%-----------------------------------------------------%
+%               Table of Contents
+%-----------------------------------------------------%  
+	\clearpage
+\pagenumbering{roman}
+
+% Table of Contents
+\renewcommand*\contentsname{Table of Contents}
+\tableofcontents
+
+% List of Figures
+\clearpage
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+
+% List of Algorithms
+\clearpage
+\addcontentsline{toc}{chapter}{List of Algorithms}
+\listofalgorithms
+
+% Start of main content
+\clearpage
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\thepage}
+\lhead{}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+%-----------------------------------------------------%
+%               Chapters
+%-----------------------------------------------------%
+\input{./Chapters/introduction}
+\input{./Chapters/chapter2}
+\input{./Chapters/chapter3}
+\input{./Chapters/chapter4}
+\input{Chapters/chapter5}
+\input{Chapters/chapter6}
+\input{Chapters/conclusion}
+\input{Chapters/futurework}
+
+%-----------------------------------------------------%
+%               Appendix
+%-----------------------------------------------------%
+\lhead{}
+\newpage 
+\appendix
+\input{Chapters/Appendix}
+
+%-----------------------------------------------------%
+%               Plagiarism Report
+%-----------------------------------------------------%
+
+\clearpage
+\chapter*{Plagiarism Report}
+\addcontentsline{toc}{chapter}{Plagiarism Report}
+
+This section includes the plagiarism reports generated for the B.Tech project document. As per academic requirements, two separate reports are provided:
+
+\begin{itemize}
+    \item \textbf{With Reference:} The report includes all cited and referenced materials to reflect the actual similarity index in context.
+\end{itemize}
+
+The similarity index is within the acceptable limit prescribed by the university's academic policies, indicating that the report maintains academic integrity.
+
+\vspace{0.5cm}
+
+\section*{With Reference}
+\begin{figure}[h]
+\centering
+    \includegraphics[width=1.1\textwidth]{Figures/turnitin.png}
+    \caption{Turnitin Plagiarism Report}
+    \label{fig:turnitin_plag_report}
+\end{figure}
+
+
+%-----------------------------------------------------%
+%               SDG Alignment
+%-----------------------------------------------------%
+\clearpage
+\chapter*{Contribution to PSOs \& Sustainable Development Goals}
+\addcontentsline{toc}{chapter}{Contribution to PSOs \& Sustainable Development Goals}
+
+\noindent\textbf{Title of the Project:} \topic
+
+\noindent\textbf{Project Members Name \& Register Numbers:} \SOneName\ (\SOneRN), \STwoName\ (\STwoRN), 
+\SThreeName\ (\SThreeRN), \SFourName\ (\SFourRN)
+
+\noindent\textbf{Guide Name \& Designation:} \gname, \gdes.
+
+\section*{Contribution to PSOs:}
+\begin{itemize}
+    \item \textbf{PSO 1:}  The project shows a good understanding of the rules for secure communication and post-quantum cryptography. The project builds a Quantum Secure File Transfer Protocol (QSFTP) which transfers files safely even from an adversary who has a quantum computer. In the project, the system encrypts and exchanges keys in a way that a computer using quantum mechanics does not pose a threat to the safety of transferred data. By studying in depth potential quantum-based attack scenarios and countermeasures, the project demonstrates an ability to foresee future security threats and design a system prepared for future security.
+    
+    \item \textbf{PSO 2:}  The project uses cryptographic techniques and standard security practices to design a practical and efficient file transfer protocol. The project uses quantum-safe algorithms like Kyber for key exchange and Dilithium for digital signatures to protect files from an adversary with a quantum computer. The project’s secure session establishment, file integrity check, and hybrid encryption are both powerful security measures and practical design choices. The project demonstrates an ability to design innovative cybersecurity solutions that follow global standards and are practical for real-world use.
+\end{itemize}
+
+
+\section*{Contribution to SDGs:}
+\vspace{1em}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{| m{3cm} | m{8cm} |}
+    \hline
+    \textbf{SDG } & \textbf{Contribution } \\
+    \hline
+    4. Quality Education & Promotes research and learning in emerging technologies like quantum cryptography and secure communication systems. \\
+    \hline
+    9. Industry, Innovation and Infrastructure & Develops innovative, quantum-resistant infrastructure for secure data transfer, strengthening digital resilience. \\
+    \hline
+    16. Peace, Justice and Strong Institutions & Enhances trust, transparency, and data integrity in digital systems, supporting secure and accountable institutions. \\
+    \hline
+\end{tabular}
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+\begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/SDG/G4.png} \\
+    \small \textbf{SDG 4}
+\end{minipage}
+\hspace{1em}
+\begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/SDG/G9.png} \\
+    \small \textbf{SDG 9}
+\end{minipage}
+\hspace{1em}
+\begin{minipage}{0.3\textwidth}
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/SDG/G16.png} \\
+    \small \textbf{SDG 16}
+\end{minipage}
+\end{center}
+
+%-----------------------------------------------------%
+%               End of Document
+%-----------------------------------------------------%
+\bibliographystyle{ieeetr}   % or plain, alpha, apalike etc.
+\bibliography{references}
+\end{document}

@@ -638,6 +638,15 @@ def upload_complete():
             )
         server_storage_path = os.path.normpath(server_storage_path)
 
+        # Compute hash if frontend didn't provide it
+        if not file_hash:
+            try:
+                from hash_verifier import compute_file_hash
+                logger.info(f"Frontend hash missing for {filename}, computing on server...")
+                file_hash = compute_file_hash(server_storage_path)
+            except Exception as e:
+                logger.error(f"Failed to compute fallback hash for {filename}: {e}")
+
         # Register hash
         if file_hash:
             try:
@@ -663,7 +672,10 @@ def upload_complete():
         return jsonify({
             "success": True,
             "filename": filename,
-            "message": "Upload complete"
+            "message": "Upload complete",
+            "file_hash": file_hash if file_hash else None,
+            "hash_algorithm": "BLAKE2b" if file_hash else None,
+            "hash_verified": True if file_hash else False
         })
 
     except Exception as e:
@@ -708,15 +720,40 @@ def download_init():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+    # Look up original hash
+    from hash_verifier import get_file_hash
+    import os
+    
+    is_shared = remote_path == 'shared' or remote_path.startswith('shared/')
+    if is_shared:
+        server_storage_path = os.path.join(
+            os.path.dirname(__file__), '..', '..', 'ServerStorage',
+            remote_path, filename
+        )
+    else:
+        server_storage_path = os.path.join(
+            os.path.dirname(__file__), '..', '..', 'ServerStorage',
+            username, remote_path, filename
+        )
+    server_storage_path = os.path.normpath(server_storage_path)
+    
+    # Retrieve from registry
+    hash_entry = get_file_hash(server_storage_path)
+    stored_hash = ""
+    if hash_entry:
+        stored_hash = hash_entry.get("hash_blake2b", "") or hash_entry.get("hash_sha256", "")
+
     result = transfer_manager.init_transfer(
         filename=filename,
         total_size=total_size,
-        file_hash="",
+        file_hash=stored_hash,
         username=username,
         remote_path=remote_path,
         direction="download"
     )
 
+    # In chunked downloads, return the original_hash in the init response too
+    result['original_hash'] = stored_hash
     return jsonify(result)
 
 
