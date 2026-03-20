@@ -12,6 +12,8 @@
     --success: #22c55e;
     --danger: #ef4444;
     --font-main: 'Inter', sans-serif;
+    --hover-bg: rgba(255, 255, 255, 0.05);
+    --bg-overlay: rgba(0, 0, 0, 0.85);
 }
 
 [data-theme="light"] {
@@ -23,6 +25,8 @@
     --text-secondary: #475569;
     --text-muted: #64748b;
     --border-color: #e2e8f0;
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    --bg-overlay: rgba(15, 23, 42, 0.4);
 }
 
 * {
@@ -464,7 +468,7 @@ body {
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: #1a1a1a;
+    background-color: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 1rem 1.5rem;
@@ -553,7 +557,7 @@ body {
 /* ===== UPLOAD COMPLETE TOAST (Bottom Right) ===== */
 .toast-notification {
     position: relative;
-    background-color: #1a1a1a;
+    background-color: var(--bg-card);
     border-left: 4px solid var(--success);
     border-radius: 6px;
     padding: 1rem 1.25rem;
@@ -670,7 +674,7 @@ select:focus {
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: #1a1a1a;
+    background-color: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 1rem 1.5rem;
@@ -761,7 +765,7 @@ select:focus {
     position: fixed;
     bottom: 30px;
     right: 30px;
-    background-color: #1a1a1a;
+    background-color: var(--bg-card);
     border-left: 4px solid var(--success);
     border-radius: 6px;
     padding: 1rem 1.25rem;
@@ -866,10 +870,8 @@ select:focus {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
-    /* Increased opacity from 0.7 to 0.85 */
+    background: var(--bg-overlay);
     backdrop-filter: blur(4px);
-    /* Added blur for better focus */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -882,17 +884,14 @@ select:focus {
 }
 
 .hash-modal-content {
-    background: #1f2937;
-    /* Solid dark background instead of var(--card-bg) */
-    border: 1px solid #374151;
-    /* Added border for definition */
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     max-width: 600px;
     width: 90%;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    /* Stronger shadow */
     animation: slideInUp 0.3s ease;
 }
 
@@ -1035,7 +1034,7 @@ select:focus {
     font-family: monospace;
     font-size: 0.85rem;
     color: var(--text-primary);
-    background: var(--bg-primary);
+    background: var(--bg-input);
     padding: 0.75rem;
     border-radius: 6px;
     word-break: break-all;

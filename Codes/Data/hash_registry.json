@@ -1631,10 +1631,46 @@
       "last_verified": "2026-03-21T01:28:29.913038",
       "verification_status": "VALID",
       "version": 1
+    },
+    "eb48a7c8-962d-4a0a-875b-1536a00d5a2f": {
+      "filename": "sysmon_event_logs.csv_0.ods",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/sysmon_event_logs.csv_0.ods",
+      "hash_blake2b": "46aed294eab5a0301f2d820d01b1c40909abc151365deebec7b97f906bc74bb7",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 83393,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:32:38.355091",
+      "last_verified": "2026-03-21T01:32:38.355102",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "6a093ed6-4bc5-4fed-86f5-3154ffda4580": {
+      "filename": "plao alto.odt",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/plao alto.odt",
+      "hash_blake2b": "9af65dbfaa3080b753ada22a7c6ab55acee69e4fdcc05b9176b46dd26dacd09c",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 109291,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:39:32.272557",
+      "last_verified": "2026-03-21T01:39:32.272565",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "d2223725-ce34-498f-a98c-407e2a056ce1": {
+      "filename": "c1382273-bcba-4f4b-88c2-8ae6b6121a70.pdf",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/c1382273-bcba-4f4b-88c2-8ae6b6121a70.pdf",
+      "hash_blake2b": "8203ac7e09f880c21b91f23d545c6926fd2645669a9fc836490c30df1045d621",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 125764,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:39:48.363068",
+      "last_verified": "2026-03-21T01:39:48.363078",
+      "verification_status": "VALID",
+      "version": 1
     }
   },
   "metadata": {
-    "total_files": 136,
+    "total_files": 139,
     "last_check": "2026-01-29T17:10:19.809016",
     "corrupted_count": 0,
     "missing_count": 20

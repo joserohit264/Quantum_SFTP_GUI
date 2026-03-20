@@ -642,7 +642,7 @@ def handle_client(conn, addr, server_state):
                             print(f"[Verify] Integrity Match: FAILED (Hash Mismatch)")
                         else:
                             print(f"[Verify] Integrity Match: UNKNOWN (No Initial Hash)")
-                        print(f"[Log] File Uploaded Successful: {filename}")
+                        print(f"[Log] File Uploaded Successful: {filename}\n")
 
                     send_message(conn, {
                         "Type": "ChunkAck",
@@ -731,7 +731,7 @@ def handle_client(conn, addr, server_state):
                         print(f"\nInitial Hash: {file_hash}")
                         print(f"Final Hash:   {file_hash}\n")
                         print(f"[Verify] Integrity Match: VERIFIED (Hashes Match)")
-                        print(f"[Log] File Download Successful: {filename}")
+                        print(f"[Log] File Download Successful: {filename}\n")
                 else:
                     send_message(conn, {"Type": "Error", "Message": "File not found"})
 
