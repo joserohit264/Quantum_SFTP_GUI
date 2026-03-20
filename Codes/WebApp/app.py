@@ -148,6 +148,32 @@ def status():
         "username": session.get("username", "Guest")
     })
 
+@app.route('/api/storage-stats')
+def storage_stats():
+    if not session.get('logged_in'):
+        return jsonify({"error": "User not logged in"}), 401
+    
+    username = session.get('username')
+    storage_dir = os.path.join(project_root, 'Handshake', 'ServerStorage', username)
+    
+    total_size = 0
+    file_count = 0
+    
+    if os.path.exists(storage_dir):
+        for root, dirs, files in os.walk(storage_dir):
+            for f in files:
+                fp = os.path.join(root, f)
+                # skip if it is symbolic link
+                if not os.path.islink(fp):
+                    total_size += os.path.getsize(fp)
+                    file_count += 1
+    
+    return jsonify({
+        "used_bytes": total_size,
+        "file_count": file_count,
+        "username": username
+    })
+
 @app.route('/api/connect', methods=['POST'])
 def connect_server():
     if not session.get('logged_in'):

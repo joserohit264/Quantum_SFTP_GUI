@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkConnectionStatus();
     initTheme();
     initUploadDropZone();
+    updateStorageStats();
 });
 
 async function checkConnectionStatus() {
@@ -120,6 +121,7 @@ function setTheme(theme) {
 
 // ===== REMOTE FILES =====
 async function loadRemoteFiles(path = null) {
+    updateStorageStats();
     const tableBody = document.getElementById('file-table-body');
     if (!tableBody) return;
 
@@ -1082,3 +1084,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+async function updateStorageStats() {
+    try {
+        const res = await fetch('/api/storage-stats');
+        const data = await res.json();
+
+        if (data.error) return;
+
+        const usedBytes = data.used_bytes || 0;
+        const fileCount = data.file_count || 0;
+
+        document.getElementById('storage-used').innerText = formatBytes(usedBytes);
+        document.getElementById('storage-count').innerText = `${fileCount} files`;
+    } catch (e) {
+        console.error("Failed to update storage stats:", e);
+    }
+}
+
+// Add call to updateStorageStats in loadRemoteFiles or after file operations

@@ -52,7 +52,24 @@
                 <button class="btn-primary" onclick="document.getElementById('file-input').click()">Choose File</button>
             </div>
 
+            <!-- Used Storage Card -->
+            <div class="action-card storage-card">
+                <div class="storage-container">
+                    <div class="storage-icon">
+                        <i class="fa-solid fa-hard-drive"></i>
+                    </div>
+                    <div class="storage-info">
+                        <span class="storage-label">Used storage</span>
+                        <div class="storage-metrics">
+                            <h2 id="storage-used">0.00 MB</h2>
+                            <span id="storage-count" class="file-count">0 files</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Create Directory Card -->
+
             <div class="action-card">
                 <h3 class="card-title">Create Directory</h3>
                 <input type="text" id="new-dir-name" class="form-input" placeholder="New directory name">
