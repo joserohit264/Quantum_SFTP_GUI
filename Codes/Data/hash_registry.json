@@ -1559,10 +1559,82 @@
       "last_verified": "2026-03-21T01:13:59.119134",
       "verification_status": "VALID",
       "version": 1
+    },
+    "72dd8992-314b-470f-a1d2-05a4221e1d74": {
+      "filename": "sysmon_event_logs.csv_0.ods",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/sysmon_event_logs.csv_0.ods",
+      "hash_blake2b": "46aed294eab5a0301f2d820d01b1c40909abc151365deebec7b97f906bc74bb7",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 83393,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:17:19.776645",
+      "last_verified": "2026-03-21T01:17:19.776667",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "5e93226b-0cdc-46de-9f6c-032b3c5e6aff": {
+      "filename": "plao alto.odt",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/plao alto.odt",
+      "hash_blake2b": "9af65dbfaa3080b753ada22a7c6ab55acee69e4fdcc05b9176b46dd26dacd09c",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 109291,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:17:19.852043",
+      "last_verified": "2026-03-21T01:17:19.852051",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "70a13333-f159-4e38-9bef-be40984dd39a": {
+      "filename": "file.txt",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/file.txt",
+      "hash_blake2b": "8e60ab9e1cd82aa419392481f694cd82a775a1b808ac2a0f9d4e99b719a967ea",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 52428800,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:17:27.265752",
+      "last_verified": "2026-03-21T01:17:27.265768",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "6f137328-ec50-45ab-9733-95168580da03": {
+      "filename": "c1382273-bcba-4f4b-88c2-8ae6b6121a70.pdf",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/c1382273-bcba-4f4b-88c2-8ae6b6121a70.pdf",
+      "hash_blake2b": "8203ac7e09f880c21b91f23d545c6926fd2645669a9fc836490c30df1045d621",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 125764,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:17:27.332897",
+      "last_verified": "2026-03-21T01:17:27.332904",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "a2ebdce0-8cd9-4e3e-b0c9-beaae0403293": {
+      "filename": "plao alto.odt",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/plao alto.odt",
+      "hash_blake2b": "9af65dbfaa3080b753ada22a7c6ab55acee69e4fdcc05b9176b46dd26dacd09c",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 109291,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:26:00.026076",
+      "last_verified": "2026-03-21T01:26:00.026084",
+      "verification_status": "VALID",
+      "version": 1
+    },
+    "2f45738e-9d94-427e-bdfb-d925a52aa555": {
+      "filename": "c1382273-bcba-4f4b-88c2-8ae6b6121a70.pdf",
+      "filepath": "/home/arul/fyp/issue/Quantum_SFTP_GUI/Codes/Handshake/ServerStorage/admin/c1382273-bcba-4f4b-88c2-8ae6b6121a70.pdf",
+      "hash_blake2b": "8203ac7e09f880c21b91f23d545c6926fd2645669a9fc836490c30df1045d621",
+      "hash_algorithm": "BLAKE2B",
+      "file_size": 125764,
+      "uploaded_by": "admin",
+      "upload_timestamp": "2026-03-21T01:28:29.913029",
+      "last_verified": "2026-03-21T01:28:29.913038",
+      "verification_status": "VALID",
+      "version": 1
     }
   },
   "metadata": {
-    "total_files": 130,
+    "total_files": 136,
     "last_check": "2026-01-29T17:10:19.809016",
     "corrupted_count": 0,
     "missing_count": 20

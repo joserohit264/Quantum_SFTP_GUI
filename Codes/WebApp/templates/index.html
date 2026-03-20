@@ -20,7 +20,7 @@
             {% if role == 'Administrator' %}
             <a href="/admin" class="btn-header" style="text-decoration: none; color: inherit;">🔐 Admin Panel</a>
             {% endif %}
-            <button class="btn-header">Transfer Manager</button>
+
             <span class="welcome-text">Welcome, {{ username }}</span>
             <button class="btn-logout" onclick="disconnectFromServer()">Logout</button>
             <div class="theme-toggles">
@@ -59,28 +59,10 @@
                 <button class="btn-primary" onclick="createDirectory()">Create</button>
             </div>
 
-            <!-- Transfer Speed Settings Card -->
-            <div class="action-card">
-                <h3 class="card-title">Transfer Speed Settings</h3>
-                <select id="speed-limit" class="form-select">
-                    <option value="0">No Limit</option>
-                    <option value="1024">1 MB/s</option>
-                    <option value="5120">5 MB/s</option>
-                    <option value="10240">10 MB/s</option>
-                </select>
-                <button class="btn-primary" onclick="setSpeedLimit()">Set Speed</button>
-                <p class="speed-status">Current limit: <span id="current-speed">No Limit</span></p>
-            </div>
+
         </div>
 
-        <!-- Settings Row -->
-        <div class="settings-row">
-            <h3 class="settings-title">Settings</h3>
-            <label class="setting-item">
-                <span>File Integrity Verification</span>
-                <input type="checkbox" id="integrity-check" checked>
-            </label>
-        </div>
+
 
         <!-- Data Table -->
         <div class="data-table-container">

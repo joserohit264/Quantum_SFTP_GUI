@@ -2,7 +2,7 @@
 const CLIENT_STATE = {
     remote_path: "",
     connected: false,
-    speedLimit: 0,
+
     inSharedFolder: false
 };
 
@@ -356,19 +356,6 @@ async function disconnectFromServer() {
         await fetch('/api/logout', { method: 'POST' });
     } catch (e) { }
     window.location.href = "/login";
-}
-
-function setSpeedLimit() {
-    const select = document.getElementById('speed-limit');
-    const value = parseInt(select.value);
-    CLIENT_STATE.speedLimit = value;
-
-    const display = document.getElementById('current-speed');
-    if (value === 0) {
-        display.innerText = "No Limit";
-    } else {
-        display.innerText = (value / 1024) + " MB/s";
-    }
 }
 
 // ===== UPLOAD =====
