@@ -720,7 +720,7 @@ Access at `http://localhost:5000` — login: `admin` / `admin`
 
 ### Using Docker Compose
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Build from Source
