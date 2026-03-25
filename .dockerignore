@@ -18,9 +18,14 @@ Thumbs.db
 .DS_Store
 
 # Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
+# Exclude local persistent data from the build context!
+Codes/Data/*
+Codes/CA/keys/*
+Codes/Handshake/certs/*
+Codes/Handshake/users.db
+Codes/WebApp/users.json
+Codes/WebApp/activity_logs.db
+ServerStorage/*
 
 # Docs
 *.md

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   q-sftp:
     build: .
@@ -17,6 +15,6 @@ services:
 
 volumes:
   q-sftp-storage:
-    driver: local
+    name: q-sftp_storage
   q-sftp-data:
-    driver: local
+    name: q-sftp_data
